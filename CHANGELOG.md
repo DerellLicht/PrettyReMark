@@ -1,5 +1,7 @@
 # PrettyMark Changelog
 
+## [1.04] - 2026-09-07
+
 ## [1.03] - 2026-09-07
 - Implement Options dialog and menu link
 - Make program recall current file position in *each* file, across document changes 
