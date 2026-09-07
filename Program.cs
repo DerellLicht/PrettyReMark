@@ -24,6 +24,14 @@ class AppSettings
     public List<string> SessionFiles { get; set; } = new();
     public string SessionActiveFile { get; set; } = "";
 
+    // Window position/size, remembered across runs. Null = never saved (first run
+    // or an old settings.json from before this feature) -- falls back to the default.
+    public int? WindowX { get; set; }
+    public int? WindowY { get; set; }
+    public int? WindowWidth { get; set; }
+    public int? WindowHeight { get; set; }
+    public bool WindowMaximized { get; set; }
+
     public void AddRecentFile(string path)
     {
         RecentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
@@ -64,6 +72,53 @@ class AppSettings
         var dir = Path.GetDirectoryName(SettingsPath);
         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this));
+    }
+}
+
+// --- Color config ---
+// User-editable theme color overrides. Separate from AppSettings/settings.json
+// (internal program state) since this file is meant to be hand-edited -- it's
+// only read at startup, so edit it while PrettyMark is closed.
+class ColorTheme
+{
+    public string TextColor { get; set; }
+    public string BackgroundColor { get; set; }
+}
+
+class ColorConfig
+{
+    public string _readme { get; set; } =
+        "PrettyMark color overrides. Edit while the program is closed -- changes are only read at startup.";
+    public ColorTheme Light { get; set; } = new() { TextColor = "#1f2328", BackgroundColor = "#ffffff" };
+    public ColorTheme Dark { get; set; } = new() { TextColor = "#f0f6fc", BackgroundColor = "#0d1117" };
+
+    private static readonly string ConfigPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "PrettyMark", "colors.json");
+
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+
+    public static ColorConfig Load()
+    {
+        try
+        {
+            if (File.Exists(ConfigPath))
+                return JsonSerializer.Deserialize<ColorConfig>(File.ReadAllText(ConfigPath));
+
+            // First run: write the defaults out so there's something to find and edit.
+            var defaults = new ColorConfig();
+            defaults.Save();
+            return defaults;
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Color config load failed: {ex.Message}"); }
+        return new ColorConfig();
+    }
+
+    public void Save()
+    {
+        var dir = Path.GetDirectoryName(ConfigPath);
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(this, WriteOptions));
     }
 }
 
@@ -136,6 +191,7 @@ class MainForm : Form
     private ToolStripMenuItem darkModeItem;
     private ToolStripMenuItem drawerItem;
     private AppSettings settings;
+    private ColorConfig colorConfig;
 
     // Fullscreen state
     private bool _isFullscreen;
@@ -206,16 +262,74 @@ class MainForm : Form
         base.OnFormClosed(e);
     }
 
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        SaveWindowBounds();
+        base.OnFormClosing(e);
+    }
+
+    // Remembers window position/size/maximized-state across runs. Uses RestoreBounds (the
+    // normal, non-maximized rectangle) when maximized, since Bounds while maximized is the
+    // full-screen rectangle -- not what we want to restore to next time.
+    private void SaveWindowBounds()
+    {
+        var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        settings.WindowX = bounds.X;
+        settings.WindowY = bounds.Y;
+        settings.WindowWidth = bounds.Width;
+        settings.WindowHeight = bounds.Height;
+        settings.WindowMaximized = WindowState == FormWindowState.Maximized;
+        settings.Save();
+    }
+
+    // Applies the saved window rectangle if one exists and is still visible on some monitor
+    // (guards against a saved position from a monitor that's since been unplugged/resized).
+    // Falls back to the original default (960x800, centered) otherwise.
+    private void ApplySavedWindowBounds()
+    {
+        if (settings.WindowX.HasValue && settings.WindowY.HasValue &&
+            settings.WindowWidth.HasValue && settings.WindowHeight.HasValue)
+        {
+            var rect = new System.Drawing.Rectangle(
+                settings.WindowX.Value, settings.WindowY.Value,
+                Math.Max(settings.WindowWidth.Value, MinimumSize.Width),
+                Math.Max(settings.WindowHeight.Value, MinimumSize.Height));
+
+            if (IsRectVisibleOnAnyScreen(rect))
+            {
+                StartPosition = FormStartPosition.Manual;
+                Bounds = rect;
+                if (settings.WindowMaximized) WindowState = FormWindowState.Maximized;
+                return;
+            }
+        }
+
+        Size = new System.Drawing.Size(960, 800);
+        StartPosition = FormStartPosition.CenterScreen;
+    }
+
+    // True if at least a corner-sized chunk of rect overlaps some screen's working area.
+    private static bool IsRectVisibleOnAnyScreen(System.Drawing.Rectangle rect)
+    {
+        const int minVisible = 100;
+        foreach (var screen in Screen.AllScreens)
+        {
+            var overlap = System.Drawing.Rectangle.Intersect(screen.WorkingArea, rect);
+            if (overlap.Width >= minVisible && overlap.Height >= minVisible) return true;
+        }
+        return false;
+    }
+
     public MainForm(string filePath)
     {
         settings = AppSettings.Load();
+        colorConfig = ColorConfig.Load();
         _currentLang = ResolveLanguageStatic(settings.Language);
         _strings = LoadTranslationsStatic(_currentLang);
 
         Text = T("app_name");
-        Size = new System.Drawing.Size(960, 800);
         MinimumSize = new System.Drawing.Size(400, 300);
-        StartPosition = FormStartPosition.CenterScreen;
+        ApplySavedWindowBounds();
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "favicon.ico");
         if (File.Exists(iconPath))
@@ -389,6 +503,12 @@ class MainForm : Form
 
         // Send i18n strings to JS
         SendStringsToJs();
+
+        // Send app version to JS (shown in the About dialog)
+        ExecuteJs($"setAppVersion({JsonSerializer.Serialize(AppVersion.Current)})");
+
+        // Send user color overrides to JS; applied whenever the theme is (re)set (see setDarkMode in index.html)
+        ExecuteJs($"setColorOverrides({JsonSerializer.Serialize(colorConfig)})");
 
         // Apply dark mode from saved settings
         SetDarkMode(settings.DarkMode);

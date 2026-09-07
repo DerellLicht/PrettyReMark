@@ -230,6 +230,7 @@ var _zoom = 1.0;
 var _dark = false;
 var _drawerOpen = true;
 var _strings = {};
+var _version = '';
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -238,6 +239,38 @@ function T(key) { return _strings[key] || key; }
 function setStrings(obj) {
     _strings = obj;
     _applyStrings();
+}
+
+// Called once at startup from Program.cs (OnNavigationCompleted), mirroring setStrings() above.
+function setAppVersion(v) {
+    _version = v;
+}
+
+// User color overrides read from colors.json (see ColorConfig in Program.cs), sent once at
+// startup. Stored here and (re)applied by setDarkMode() below, whichever theme is active.
+var _colorOverrides = { Light: {}, Dark: {} };
+
+function setColorOverrides(obj) {
+    _colorOverrides = obj;
+    _applyColorOverrides();
+}
+
+// Rebuilds the <style id="color-overrides"> block for whichever theme is currently active.
+// Injected after the theme stylesheet in the cascade (see <head>), so it wins without
+// touching github-markdown[-dark].css itself.
+function _applyColorOverrides() {
+    var theme = _dark ? _colorOverrides.Dark : _colorOverrides.Light;
+    var el = document.getElementById('color-overrides');
+    if (!el) {
+        el = document.createElement('style');
+        el.id = 'color-overrides';
+        document.head.appendChild(el);
+    }
+    if (!theme) { el.textContent = ''; return; }
+    var rules = '';
+    if (theme.TextColor) rules += 'color:' + theme.TextColor + ';';
+    if (theme.BackgroundColor) rules += 'background-color:' + theme.BackgroundColor + ';';
+    el.textContent = rules ? '.markdown-body{' + rules + '}' : '';
 }
 
 function _applyStrings() {
@@ -281,6 +314,7 @@ function setDarkMode(on) {
     document.body.classList.toggle('dark', on);
     document.getElementById('theme-md').href = on ? 'github-markdown-dark.css' : 'github-markdown.css';
     document.getElementById('theme-hl').href = on ? 'highlight-github-dark.min.css' : 'highlight-github.min.css';
+    _applyColorOverrides();
 }
 
 function isDarkMode() { return _dark; }
@@ -480,9 +514,10 @@ function showAbout() {
         + '<button id="prettymark-about-close" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border:none;background:rgba(0,0,0,0.3);color:#fff;font-size:18px;line-height:1;border-radius:6px;cursor:pointer;z-index:1;">&times;</button>'
         + '<div style="background:' + (bg === '#fff' ? '#f6f8fa' : '#0d1117') + ';padding:24px;flex-shrink:0;"><img src="logo.png" alt="PrettyMark" style="max-width:100%;max-height:40vh;display:block;margin:0 auto;"></div>'
         + '<div style="padding:20px 32px 28px;">'
-        + '<h2 style="margin:0 0 8px 0;color:' + fg + ';">' + _esc(T('app_name')) + '</h2>'
+        + '<h2 style="margin:0 0 4px 0;color:' + fg + ';">' + _esc(T('app_name')) + '</h2>'
+        + (_version ? '<p style="margin:0 0 8px 0;color:' + sub + ';font-size:12px;">v' + _esc(_version) + '</p>' : '')
         + '<p style="margin:0 0 12px 0;color:' + sub + ';font-size:14px;">' + _esc(T('about_description')) + '</p>'
-        + '<a href="https://gitlab.com/eagle1/prettymark" style="color:' + link + ';font-size:14px;">gitlab.com/eagle1/prettymark</a>'
+        + '<a href="https://gitlab.com/DerellLicht/prettymark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/prettymark</a>'
         + '<br><br><button id="prettymark-about-ok" style="padding:6px 20px;border:1px solid ' + btnBorder + ';border-radius:6px;background:' + btnBg + ';color:' + fg + ';cursor:pointer;font-size:14px;">OK</button>'
         + '</div></div>';
     var closeAbout = function() { o.remove(); document.removeEventListener('keydown', escHandler); };
