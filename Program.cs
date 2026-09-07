@@ -32,6 +32,14 @@ class AppSettings
     public int? WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
 
+    // Last scroll position within each file, keyed by full file path, so reopening a document
+    // -- across tab switches within a session AND across closing/reopening PrettyMark entirely
+    // -- returns you to where you left off rather than the top. OrdinalIgnoreCase because
+    // Windows paths are case-insensitive; re-applied after every Load() below since
+    // JsonSerializer.Deserialize builds a fresh Dictionary with the default (case-sensitive)
+    // comparer, not this one.
+    public Dictionary<string, double> ScrollPositions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public void AddRecentFile(string path)
     {
         RecentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
@@ -60,6 +68,8 @@ class AppSettings
                 settings.SessionFiles = settings.SessionFiles?.Where(IsValidFilePath).ToList() ?? new();
                 if (!string.IsNullOrEmpty(settings.SessionActiveFile) && !IsValidFilePath(settings.SessionActiveFile))
                     settings.SessionActiveFile = "";
+                settings.ScrollPositions = new Dictionary<string, double>(
+                    settings.ScrollPositions ?? new(), StringComparer.OrdinalIgnoreCase);
                 return settings;
             }
         }
@@ -212,6 +222,7 @@ class MainForm : Form
     private ToolStripMenuItem editMenu, findItem;
     private ToolStripMenuItem viewMenu, zoomInItem, zoomOutItem, resetZoomItem, fullScreenItem;
     private ToolStripMenuItem langMenu, helpMenu, aboutItem;
+    private ToolStripMenuItem optionsItem;
 
     // Session restore
     private string _initialFilePath;
@@ -406,12 +417,15 @@ class MainForm : Form
             (s, e) => ToggleFullscreen()) { ShortcutKeys = Keys.F11 };
         viewMenu.DropDownItems.Add(fullScreenItem);
 
+        // Options (single top-level item, no dropdown -- opens the dialog directly)
+        optionsItem = new ToolStripMenuItem("", null, (s, e) => OpenOptionsDialog());
+
         // ?
         helpMenu = new ToolStripMenuItem();
         aboutItem = new ToolStripMenuItem("", null, (s, e) => ExecuteJs("showAbout()"));
         helpMenu.DropDownItems.Add(aboutItem);
 
-        menuStrip.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, helpMenu });
+        menuStrip.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, optionsItem, helpMenu });
         MainMenuStrip = menuStrip;
         Controls.Add(menuStrip);
 
@@ -572,6 +586,20 @@ class MainForm : Form
                 var id = doc.RootElement.GetProperty("id").GetString();
                 CloseTab(id);
             }
+            else if (type == "scroll_position")
+            {
+                // Debounced ~600ms in JS (index.html) rather than on every scroll event.
+                // tab lookup can legitimately miss (e.g. a message that was already in flight
+                // when its tab got closed), so this is a no-op rather than an error in that case.
+                var id = doc.RootElement.GetProperty("id").GetString();
+                var scrollTop = doc.RootElement.GetProperty("scrollTop").GetDouble();
+                var tab = tabs.FirstOrDefault(t => t.Id == id);
+                if (tab != null)
+                {
+                    settings.ScrollPositions[tab.FilePath] = scrollTop;
+                    settings.Save();
+                }
+            }
             else if (type == "shortcut")
             {
                 var action = doc.RootElement.GetProperty("action").GetString();
@@ -605,6 +633,22 @@ class MainForm : Form
     // --- Tab operations ---
 
     private static readonly string[] AllowedExtensions = { ".md", ".markdown", ".txt" };
+
+    // Shared by OpenTab and RestoreSession: builds the JSON payload for addTab(), including
+    // any scroll position persisted from a previous session (0 if this file's never been
+    // scrolled/tracked before). Keeping the lookup in one place avoids the two call sites
+    // drifting out of sync with what addTab() in index.html actually expects.
+    private string BuildTabJson(TabInfo tab)
+    {
+        var scrollTop = settings.ScrollPositions.GetValueOrDefault(tab.FilePath, 0);
+        return JsonSerializer.Serialize(new
+        {
+            id = tab.Id,
+            name = tab.FileName,
+            path = Path.GetDirectoryName(tab.FilePath),
+            scrollTop
+        });
+    }
 
     private async void OpenTab(string path)
     {
@@ -644,7 +688,7 @@ class MainForm : Form
         RebuildRecentMenu();
 
         // Send tab info to JS
-        var tabJson = JsonSerializer.Serialize(new { id = tab.Id, name = tab.FileName, path = Path.GetDirectoryName(tab.FilePath) });
+        var tabJson = BuildTabJson(tab);
         await webView.ExecuteScriptAsync($"addTab({tabJson})");
 
         // Render content
@@ -871,8 +915,11 @@ class MainForm : Form
 
             tabs.Add(tab);
 
-            var tabJson = JsonSerializer.Serialize(new { id = tab.Id, name = tab.FileName, path = Path.GetDirectoryName(tab.FilePath) });
-            await webView.ExecuteScriptAsync($"addTab({tabJson})");
+            var tabJson = BuildTabJson(tab);
+            // activate:false -- see addTab()'s comment in index.html for why. The tab actually
+            // meant to end up active gets a real activateTab() call below, once, after every
+            // tab in the session has been added.
+            await webView.ExecuteScriptAsync($"addTab({tabJson}, false)");
 
             if (string.Equals(path, activeFilePath, StringComparison.OrdinalIgnoreCase))
                 lastTabId = tab.Id;
@@ -926,6 +973,21 @@ class MainForm : Form
         settings.DarkMode = on;
         settings.Save();
         ExecuteJs($"setDarkMode({(on ? "true" : "false")})");
+    }
+
+    // Opens the Options dialog modally. On OK, the dialog's working copy of the colors becomes
+    // the real colorConfig, gets persisted to colors.json, and is pushed into JS immediately --
+    // the same setColorOverrides() call used at startup -- so the change is visible without
+    // restarting.
+    private void OpenOptionsDialog()
+    {
+        using var dlg = new OptionsDialog(colorConfig, _strings);
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            colorConfig = dlg.Result;
+            colorConfig.Save();
+            ExecuteJs($"setColorOverrides({JsonSerializer.Serialize(colorConfig)})");
+        }
     }
 
     private async void ExecuteJs(string script)
@@ -1000,6 +1062,9 @@ class MainForm : Form
         zoomOutItem.Text = T("menu_zoom_out");
         resetZoomItem.Text = T("menu_reset_zoom");
         fullScreenItem.Text = T("menu_fullscreen");
+        // Falls back to "Options" directly (rather than the strict T(), which would show the
+        // literal key) since this menu item predates any lang/*.json entry for it.
+        optionsItem.Text = _strings.GetValueOrDefault("menu_options", "Options");
         helpMenu.Text = T("menu_help");
         aboutItem.Text = T("menu_about");
 
@@ -1061,3 +1126,147 @@ class MainForm : Form
         base.Dispose(disposing);
     }
 }
+
+// --- Options dialog ---
+// First pass: edits the four colors currently in colors.json (fg/bg for each theme). Uses
+// FormStartPosition.CenterParent, so it always opens relative to MainForm -- which already
+// guarantees it's on-screen (see ApplySavedWindowBounds/IsRectVisibleOnAnyScreen above) -- rather
+// than needing its own off-screen-recovery logic the way a taskbar-launched, parent-less window
+// (e.g. a system-tray dialog) would.
+class OptionsDialog : Form
+{
+    private readonly Dictionary<string, string> strings;
+    private Panel lightTextSwatch, lightBgSwatch, darkTextSwatch, darkBgSwatch;
+
+    // The edited colors, populated only if the user clicks OK (see OnOk below). Null otherwise.
+    public ColorConfig Result { get; private set; }
+
+    public OptionsDialog(ColorConfig current, Dictionary<string, string> strings)
+    {
+        this.strings = strings;
+
+        Text = T("options_title", "Options");
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterParent;
+        Padding = new Padding(12);
+
+        // layout/buttonPanel are deliberately NOT docked. AutoSize on a docked control reports
+        // "whatever space the parent leaves," not its actual content size -- which is what
+        // shrank this dialog down to almost nothing. Left undocked, AutoSize instead resizes
+        // each panel to its real preferred size, and we then size and position everything
+        // ourselves below, so the Form ends up exactly as big as its content actually needs.
+        var layout = new TableLayoutPanel
+        {
+            ColumnCount = 3,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Location = new System.Drawing.Point(Padding.Left, Padding.Top)
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
+
+        lightTextSwatch = AddColorRow(layout, T("options_light_text", "Light Theme Text Color"), current.Light.TextColor);
+        lightBgSwatch = AddColorRow(layout, T("options_light_bg", "Light Theme Background Color"), current.Light.BackgroundColor);
+        darkTextSwatch = AddColorRow(layout, T("options_dark_text", "Dark Theme Text Color"), current.Dark.TextColor);
+        darkBgSwatch = AddColorRow(layout, T("options_dark_bg", "Dark Theme Background Color"), current.Dark.BackgroundColor);
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        };
+        var cancelBtn = new Button { Text = T("options_cancel", "Cancel"), DialogResult = DialogResult.Cancel };
+        var okBtn = new Button { Text = T("options_ok", "OK") };
+        okBtn.Click += (s, e) => OnOk();
+        buttonPanel.Controls.Add(cancelBtn);
+        buttonPanel.Controls.Add(okBtn);
+
+        Controls.Add(layout);
+        Controls.Add(buttonPanel);
+        AcceptButton = okBtn;
+        CancelButton = cancelBtn;
+
+        // Now that both panels have auto-sized to their real content, place buttonPanel below
+        // layout and right-aligned under it, then shrink-wrap the Form's ClientSize around the
+        // two -- this is what actually replaces the broken Form.AutoSize from before.
+        const int gapBetweenRows = 12;
+        buttonPanel.Location = new System.Drawing.Point(
+            layout.Right - buttonPanel.Width, layout.Bottom + gapBetweenRows);
+        ClientSize = new System.Drawing.Size(
+            Padding.Left + layout.Width + Padding.Right,
+            Padding.Top + layout.Height + gapBetweenRows + buttonPanel.Height + Padding.Bottom);
+    }
+
+    // Like MainForm's T(), but with an explicit fallback rather than the key itself, so the
+    // dialog reads fine in English even before these keys exist in lang/*.json.
+    private string T(string key, string fallback) => strings.GetValueOrDefault(key, fallback);
+
+    // Adds one "label | color swatch | ... button" row and wires the button to open the standard
+    // Windows color picker against that swatch. Returns the swatch panel so OnOk can read its
+    // final BackColor back out when the dialog is accepted.
+    private Panel AddColorRow(TableLayoutPanel layout, string label, string initialHex)
+    {
+        int row = layout.RowCount;
+        layout.RowCount = row + 1;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        layout.Controls.Add(new Label
+        {
+            Text = label,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 6, 12, 6)
+        }, 0, row);
+
+        var swatch = new Panel
+        {
+            Size = new System.Drawing.Size(32, 20),
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = System.Drawing.ColorTranslator.FromHtml(initialHex),
+            Margin = new Padding(0, 4, 4, 4)
+        };
+        layout.Controls.Add(swatch, 1, row);
+
+        var browseBtn = new Button { Text = "...", Width = 32, Margin = new Padding(0, 2, 0, 2) };
+        browseBtn.Click += (s, e) => PickColor(swatch);
+        layout.Controls.Add(browseBtn, 2, row);
+
+        return swatch;
+    }
+
+    // Opens the standard Windows color-selection dialog pre-set to the swatch's current color,
+    // and updates the swatch's BackColor if the user confirms a new one.
+    private void PickColor(Panel swatch)
+    {
+        using var dlg = new ColorDialog { Color = swatch.BackColor, FullOpen = true };
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            swatch.BackColor = dlg.Color;
+        }
+    }
+
+    // Builds Result from the four swatches' current colors and closes the dialog with OK.
+    private void OnOk()
+    {
+        Result = new ColorConfig
+        {
+            Light = new ColorTheme
+            {
+                TextColor = System.Drawing.ColorTranslator.ToHtml(lightTextSwatch.BackColor),
+                BackgroundColor = System.Drawing.ColorTranslator.ToHtml(lightBgSwatch.BackColor)
+            },
+            Dark = new ColorTheme
+            {
+                TextColor = System.Drawing.ColorTranslator.ToHtml(darkTextSwatch.BackColor),
+                BackgroundColor = System.Drawing.ColorTranslator.ToHtml(darkBgSwatch.BackColor)
+            }
+        };
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+}
+

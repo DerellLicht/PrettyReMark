@@ -1,5 +1,10 @@
 # PrettyMark Changelog
 
+## [1.03] - 2026-09-07
+- Implement Options dialog and menu link
+- Make program recall current file position in *each* file, across document changes 
+  as well as program restarts.
+
 ## [1.02] - 2026-09-07
 - added version number to About dialog
 - moved main text colors to `colors.json`

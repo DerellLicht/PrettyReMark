@@ -329,23 +329,39 @@ var _purifyConfig = {
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
 };
 
-function render(md) {
+// restoreTabScroll (default true) restores the ACTIVE tab's remembered scroll position --
+// captured in activateTab() above when the reader last switched away from it -- rather than
+// jumping to the top. That's correct for opening a file or switching tabs. reloadContent()
+// below passes false and does its own (live, not tab-map) scroll preservation instead, since
+// a same-tab disk-reload isn't a tab switch -- activateTab() never ran, so there's no fresh
+// tab-map entry to restore from.
+function render(md, restoreTabScroll) {
+    if (restoreTabScroll === undefined) restoreTabScroll = true;
     _el.style.cssText = '';
     _el.innerHTML = DOMPurify.sanitize(marked.parse(md), _purifyConfig);
     document.querySelectorAll('pre code').forEach(function(block) {
         hljs.highlightElement(block);
     });
     _resolveLocalImages();
-    // Scroll to top on new content
-    document.getElementById('content-area').scrollTop = 0;
+    var contentArea = document.getElementById('content-area');
+    var target = restoreTabScroll ? (_scrollPositions[_activeTabId] || 0) : 0;
+    // If the file got shorter since target was saved (edited externally, ads trimmed, etc.),
+    // the browser clamps an out-of-range scrollTop to the new max automatically -- lands at
+    // the bottom of the document rather than erroring or leaving a blank view. No manual
+    // clamping needed here.
+    // Deferred a frame for the same reason as reloadContent() below: setting scrollTop
+    // immediately after innerHTML is replaced gets ignored, since the browser hasn't finished
+    // laying out the new content yet.
+    requestAnimationFrame(function() {
+        contentArea.scrollTop = target;
+    });
 }
 
-// render() always jumps back to the top, which is correct when opening a file or
-// switching tabs, but wrong when the file-watcher fires because the CURRENTLY
-// DISPLAYED document just changed on disk (e.g. trimming ads out of a saved chat
-// export while it's open). Program.cs's file-watch handler should call this instead
-// of render() for that specific case, so the reader's scroll position survives the
-// refresh instead of being thrown back to the top on every save.
+// The file-watcher fires when the CURRENTLY DISPLAYED document changes on disk (e.g. trimming
+// ads out of a saved chat export while it's open) -- a same-tab content refresh, not a tab
+// switch, so it needs its own scroll handling rather than render()'s tab-scroll-map restore
+// (which has nothing fresh to restore from here, since activateTab() never ran).
+// Program.cs's file-watch handler calls this instead of render() for that specific case.
 //
 // We don't try to track *which* line the old scrollTop corresponded to in the new
 // content — after a small edit the same pixel offset lands you close enough to where
@@ -358,7 +374,7 @@ function render(md) {
 function reloadContent(md) {
     var contentArea = document.getElementById('content-area');
     var savedScrollTop = contentArea.scrollTop;
-    render(md);
+    render(md, false);
     requestAnimationFrame(function() {
         contentArea.scrollTop = savedScrollTop;
     });
@@ -428,10 +444,26 @@ function toggleDrawer() {
 // --- Tabs ---
 var _tabDirs = {};       // tab id -> the folder its file lives in, so relative links can be resolved against it
 var _activeTabDir = null;
+var _activeTabId = null;
+var _scrollPositions = {};  // tab id -> #content-area.scrollTop, captured on switch-away (activateTab below)
 
-function addTab(info) {
-    // info: { id, name, path }
+function addTab(info, activate) {
+    // info: { id, name, path, scrollTop }. scrollTop is the position persisted from a previous
+    // session (Program.cs looks it up by file path in settings.ScrollPositions) -- seeding the
+    // in-session map with it here means render()'s existing _scrollPositions[_activeTabId]
+    // lookup (see render() above) picks it up automatically on first render, no separate
+    // restore path needed.
+    //
+    // activate (default true) controls whether this call also switches to the new tab via
+    // activateTab() below. Program.cs passes false when restoring a whole saved session, since
+    // that adds every tab in a loop before any of them are actually rendered -- if each one
+    // triggered activateTab()'s "save the outgoing tab's scroll position" logic, it would read
+    // #content-area's still-empty scrollTop (0) and clobber the very positions we just seeded
+    // above, for every tab except whichever is restored last. RestoreSession instead adds all
+    // tabs inactive, then explicitly activates just the one that should end up on top.
+    if (activate === undefined) activate = true;
     _tabDirs[info.id] = info.path || '';
+    _scrollPositions[info.id] = info.scrollTop || 0;
     // Add to tab bar
     var tabBar = document.getElementById('tab-bar');
     var tab = document.createElement('div');
@@ -468,10 +500,19 @@ function addTab(info) {
     drawerList.appendChild(item);
 
     // Activate this tab
-    activateTab(info.id);
+    if (activate) activateTab(info.id);
 }
 
 function activateTab(id) {
+    // Remember where the reader was in the tab we're leaving, so switching back to it later
+    // restores that position (see render() below) instead of dropping them at the top. Only
+    // if that tab is still actually open -- guards against resurrecting a stale entry via
+    // _activeTabId still pointing at a just-closed tab (removeTab already deleted its
+    // _tabDirs entry by the time CloseTab's follow-up activateTab(next) call reaches here).
+    if (_activeTabId && _activeTabId in _tabDirs) {
+        _scrollPositions[_activeTabId] = document.getElementById('content-area').scrollTop;
+    }
+    _activeTabId = id;
     _activeTabDir = _tabDirs[id] || null;
     // Tab bar
     document.querySelectorAll('#tab-bar .tab').forEach(function(t) {
@@ -485,11 +526,27 @@ function activateTab(id) {
 
 function removeTab(id) {
     delete _tabDirs[id];
+    delete _scrollPositions[id];
     var tab = document.querySelector('#tab-bar .tab[data-id="' + id + '"]');
     if (tab) tab.remove();
     var item = document.querySelector('#drawer-list .drawer-item[data-id="' + id + '"]');
     if (item) item.remove();
 }
+
+// Persists the active tab's scroll position to disk (via Program.cs -> settings.ScrollPositions,
+// keyed by file path) so it survives closing and reopening PrettyMark, not just switching tabs
+// within a session. Debounced 600ms after scrolling stops, rather than on every scroll event,
+// since a rapid scroll-fling would otherwise fire dozens of redundant saves for one motion.
+var _scrollSaveTimer = null;
+document.getElementById('content-area').addEventListener('scroll', function() {
+    if (_scrollSaveTimer) clearTimeout(_scrollSaveTimer);
+    _scrollSaveTimer = setTimeout(function() {
+        if (!_activeTabId) return;
+        var scrollTop = document.getElementById('content-area').scrollTop;
+        _scrollPositions[_activeTabId] = scrollTop;  // keep the in-session cache in sync too
+        window.chrome.webview.postMessage({ type: 'scroll_position', id: _activeTabId, scrollTop: scrollTop });
+    }, 600);
+}, { passive: true });
 
 function _esc(s) {
     var d = document.createElement('div');
