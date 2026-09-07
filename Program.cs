@@ -321,6 +321,16 @@ class MainForm : Form
         webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             "app.local", assetsDir, CoreWebView2HostResourceAccessKind.Allow);
 
+        // Serve images referenced by the CURRENTLY ACTIVE tab's document under a second virtual
+        // host, "doc.local". We intercept requests live (WebResourceRequested) rather than using
+        // SetVirtualHostNameToFolderMapping, because that API's folder can't be safely re-pointed
+        // per tab: per Microsoft's own docs, once the page's resource loaders exist (which they do,
+        // since PrettyMark's page loads once at startup and tabs are swapped via innerHTML, never a
+        // real navigation), mapping changes may not take effect without a full page reload.
+        webView.CoreWebView2.AddWebResourceRequestedFilter(
+            "https://doc.local/*", CoreWebView2WebResourceContext.Image, CoreWebView2WebResourceRequestSourceKinds.Document);
+        webView.CoreWebView2.WebResourceRequested += OnDocLocalResourceRequested;
+
         // Handle JS messages
         webView.CoreWebView2.WebMessageReceived += OnWebMessage;
 
@@ -338,6 +348,11 @@ class MainForm : Form
                 var ext = Path.GetExtension(path).ToLowerInvariant();
                 if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
                     BeginInvoke(() => OpenTab(path));
+                else
+                    // Not a type PrettyMark renders itself (e.g. .html) — hand off to the OS default app.
+                    // Covers Ctrl+click / middle-click, which land here instead of the JS click handler.
+                    BeginInvoke(() => System.Diagnostics.Process.Start(
+                        new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
             }
         };
 
@@ -351,6 +366,10 @@ class MainForm : Form
                 var ext = Path.GetExtension(path).ToLowerInvariant();
                 if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
                     BeginInvoke(() => OpenTab(path));
+                else
+                    // Same fallback as NavigationStarting above, for links opened via window.open()/target="_blank".
+                    BeginInvoke(() => System.Diagnostics.Process.Start(
+                        new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
             }
         };
 
@@ -406,6 +425,23 @@ class MainForm : Form
                         new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
                 }
             }
+            else if (type == "open_local_file")
+            {
+                // A local link clicked in the rendered markdown, already resolved by the JS side
+                // against the active tab's own folder. Markdown files open as a new tab like any
+                // other; anything else (e.g. .html) goes to the OS default app.
+                var url = doc.RootElement.GetProperty("url").GetString();
+                if (Uri.TryCreate(url, UriKind.Absolute, out var fileUri) && fileUri.IsFile)
+                {
+                    var path = fileUri.LocalPath;
+                    var ext = Path.GetExtension(path).ToLowerInvariant();
+                    if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
+                        OpenTab(path);
+                    else
+                        System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+                }
+            }
             else if (type == "switch_tab")
             {
                 var id = doc.RootElement.GetProperty("id").GetString();
@@ -443,7 +479,7 @@ class MainForm : Form
                 settings.Save();
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WebMessage parse failed: {ex.Message}"); }
+        catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"PrettyMark: WebMessage parse failed: {ex.Message}"); }
     }
 
     // --- Tab operations ---
@@ -542,12 +578,64 @@ class MainForm : Form
         SaveSession();
     }
 
-    private async Task RenderTab(TabInfo tab)
+    private static readonly Dictionary<string, string> ImageContentTypes = new()
+    {
+        [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".png"] = "image/png",
+        [".gif"] = "image/gif", [".bmp"] = "image/bmp", [".webp"] = "image/webp", [".svg"] = "image/svg+xml"
+    };
+
+    private void OnDocLocalResourceRequested(object sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        // Resolves against whichever tab is active AT REQUEST TIME, so there's no stale mapping to
+        // worry about — switching tabs just changes what the next request resolves against.
+        try
+        {
+            var activeTab = tabs.FirstOrDefault(t => t.Id == activeTabId);
+            if (activeTab == null)
+            {
+                e.Response = webView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+                return;
+            }
+
+            var uri = new Uri(e.Request.Uri);
+            var relPath = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
+            var fullPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(activeTab.FilePath), relPath));
+
+            if (!File.Exists(fullPath))
+            {
+                e.Response = webView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+                return;
+            }
+
+            var ext = Path.GetExtension(fullPath).ToLowerInvariant();
+            var contentType = ImageContentTypes.TryGetValue(ext, out var ct) ? ct : "application/octet-stream";
+
+            var stream = new MemoryStream(File.ReadAllBytes(fullPath));
+            e.Response = webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                stream, 200, "OK", $"Content-Type: {contentType}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"PrettyMark: doc.local resource request failed: {ex.Message}");
+            e.Response = webView.CoreWebView2.Environment.CreateWebResourceResponse(null, 500, "Error", "");
+        }
+    }
+
+    // preserveScroll selects which JS-side function renders the content:
+    //   false (default) -> render()         - jumps to top of document
+    //   true             -> reloadContent()  - keeps the reader's current scroll position
+    // Every caller except OnFileChanged (the file-watcher's debounced callback) is opening
+    // or switching to a genuinely different document, where scrolling to top is correct;
+    // only the file-watcher case represents the CURRENTLY DISPLAYED document changing
+    // underneath the reader (e.g. trimming ads out of a saved chat export), where jumping
+    // back to the top on every save is the behavior we're fixing.
+    private async Task RenderTab(TabInfo tab, bool preserveScroll = false)
     {
         if (tab == null || !File.Exists(tab.FilePath)) return;
         var content = ReadFile(tab.FilePath);
         var json = JsonSerializer.Serialize(content);
-        await webView.ExecuteScriptAsync($"render({json})");
+        var jsFunction = preserveScroll ? "reloadContent" : "render";
+        await webView.ExecuteScriptAsync($"{jsFunction}({json})");
     }
 
     private void UpdateTitle(TabInfo tab)
@@ -588,7 +676,7 @@ class MainForm : Form
                 if (tabId == activeTabId)
                 {
                     var tab = tabs.FirstOrDefault(t => t.Id == tabId);
-                    if (tab != null) _ = RenderTab(tab);
+                    if (tab != null) _ = RenderTab(tab, preserveScroll: true);
                 }
             });
         };
