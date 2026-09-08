@@ -1,6 +1,7 @@
 # PrettyMark Changelog
 
 ## [1.04] - 2026-09-07
+- update documents (including README.md, LICENSE.txt)
 
 ## [1.03] - 2026-09-07
 - Implement Options dialog and menu link
@@ -8,7 +9,7 @@
   as well as program restarts.
 
 ## [1.02] - 2026-09-07
-- added version number to About dialog
+- added version number to About dialog (see `AppVersion.cs`)
 - moved main text colors to `colors.json`
 - save/restore size/position of dialog
 
