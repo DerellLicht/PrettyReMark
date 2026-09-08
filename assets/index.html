@@ -267,10 +267,38 @@ function _applyColorOverrides() {
         document.head.appendChild(el);
     }
     if (!theme) { el.textContent = ''; return; }
+
+    // .markdown-body's base rule (in <head> above) is a single unscoped selector -- light/dark
+    // is swapped by pointing #theme-md at a whole different stylesheet, not a body.dark class --
+    // so an unscoped override here always outranks/out-orders it regardless of theme.
+    //
+    // The sidebar/page selectors below are different: their dark-mode colors come from
+    // "body.dark X" rules living alongside the plain "X" light rules in that same <head> style
+    // block, and "body.dark X" is MORE specific than a bare "X". So when dark mode is active,
+    // our override has to be written as "body.dark X" too, or the base dark rule would win over
+    // it despite this <style> block coming later in the document. `scope` below adds that prefix
+    // only when it's actually needed.
+    var scope = _dark ? 'body.dark ' : '';
     var rules = '';
-    if (theme.TextColor) rules += 'color:' + theme.TextColor + ';';
-    if (theme.BackgroundColor) rules += 'background-color:' + theme.BackgroundColor + ';';
-    el.textContent = rules ? '.markdown-body{' + rules + '}' : '';
+
+    var docRules = '';
+    if (theme.TextColor) docRules += 'color:' + theme.TextColor + ';';
+    if (theme.BackgroundColor) docRules += 'background-color:' + theme.BackgroundColor + ';';
+    if (docRules) rules += '.markdown-body{' + docRules + '}';
+
+    if (theme.PageBackgroundColor) rules += scope + 'body{background-color:' + theme.PageBackgroundColor + ';}';
+    if (theme.SidebarBackgroundColor) rules += scope + '#drawer{background:' + theme.SidebarBackgroundColor + ';}';
+    if (theme.SidebarFilenameColor) rules += scope + '.drawer-filename{color:' + theme.SidebarFilenameColor + ';}';
+    if (theme.SidebarPathColor) rules += scope + '.drawer-path{color:' + theme.SidebarPathColor + ';}';
+
+    var activeRules = '';
+    if (theme.SidebarActiveBackgroundColor) activeRules += 'background:' + theme.SidebarActiveBackgroundColor + ';';
+    if (theme.SidebarActiveBarColor) activeRules += 'border-left-color:' + theme.SidebarActiveBarColor + ';';
+    if (activeRules) rules += scope + '.drawer-item.active{' + activeRules + '}';
+
+    if (theme.SidebarHoverBackgroundColor) rules += scope + '.drawer-item:hover{background:' + theme.SidebarHoverBackgroundColor + ';}';
+
+    el.textContent = rules;
 }
 
 function _applyStrings() {
