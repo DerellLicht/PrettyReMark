@@ -1,4 +1,4 @@
-# PrettyMark Changelog
+# PrettyReMark Changelog
 
 ## [1.06] - 2026-09-08
 - renaming program to PrettyReMark, in preperation for distributing it
