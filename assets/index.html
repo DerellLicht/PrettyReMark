@@ -116,7 +116,14 @@ body.dark .tab.active { color: #f0f6fc; background: #0d1117; }
 body.dark .tab-close:hover { background: #30363d; }
 
 /* Content area */
-#content-area { flex: 1; overflow-y: auto; }
+/* overflow-anchor: none -- otherwise, if a tab's images finish loading (and growing) above the
+   target scrollTop after it's been set, the browser's CSS scroll anchoring feature nudges
+   scrollTop to compensate. Fine for a single slow image, but can overshoot significantly with
+   several images loading in sequence right after a large programmatic scrollTop is set -- the
+   exact situation a session restore full of long-untouched (uncached) tabs creates. Disabled so
+   the target render() sets (see index.html's render()) stays put regardless of what loads in
+   afterward. */
+#content-area { flex: 1; overflow-y: auto; overflow-anchor: none; }
 .markdown-body { padding: 32px 40px; }
 
 /* Status bar */
@@ -372,15 +379,20 @@ function render(md, restoreTabScroll) {
     _resolveLocalImages();
     var contentArea = document.getElementById('content-area');
     var target = restoreTabScroll ? (_scrollPositions[_activeTabId] || 0) : 0;
-    // If the file got shorter since target was saved (edited externally, ads trimmed, etc.),
-    // the browser clamps an out-of-range scrollTop to the new max automatically -- lands at
-    // the bottom of the document rather than erroring or leaving a blank view. No manual
-    // clamping needed here.
     // Deferred a frame for the same reason as reloadContent() below: setting scrollTop
     // immediately after innerHTML is replaced gets ignored, since the browser hasn't finished
     // laying out the new content yet.
     requestAnimationFrame(function() {
         contentArea.scrollTop = target;
+        // If the file got shorter since `target` was saved (edited externally, ads trimmed,
+        // etc.), the browser clamps an out-of-range scrollTop down to the new max automatically
+        // -- fine for right now, but if the corrected value is never saved back, the same stale
+        // (too-large) target just gets reapplied and re-clamped every single time this tab is
+        // opened, since nothing else would prompt a fresh save -- landing at the bottom looks
+        // like "I'm at the end", so there's no obvious reason to scroll and overwrite it. Saving
+        // the corrected value here, through the same path the debounced scroll listener uses,
+        // makes this self-heal after one clamp instead of recurring indefinitely.
+        if (contentArea.scrollTop !== target) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
     });
 }
 
@@ -404,6 +416,10 @@ function reloadContent(md) {
     render(md, false);
     requestAnimationFrame(function() {
         contentArea.scrollTop = savedScrollTop;
+        // Same self-heal as render() above -- an external edit that trims content is exactly
+        // the case this function exists for, so a stale/clamped scrollTop is if anything more
+        // likely here than on an ordinary tab switch.
+        if (contentArea.scrollTop !== savedScrollTop) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
     });
 }
 
@@ -531,13 +547,21 @@ function addTab(info, activate) {
 }
 
 function activateTab(id) {
-    // Remember where the reader was in the tab we're leaving, so switching back to it later
-    // restores that position (see render() below) instead of dropping them at the top. Only
-    // if that tab is still actually open -- guards against resurrecting a stale entry via
-    // _activeTabId still pointing at a just-closed tab (removeTab already deleted its
-    // _tabDirs entry by the time CloseTab's follow-up activateTab(next) call reaches here).
+    // Cancel any pending debounced save left over from the tab we're leaving. If that timer
+    // fired AFTER _activeTabId below has switched to the NEW tab but BEFORE the new tab's
+    // content has actually been rendered (render() is a separate, later ExecuteScriptAsync
+    // call from Program.cs -- not synchronous with this one), it would read the OLD tab's
+    // still-displayed scrollTop and save it under the NEW tab's id/file path -- corrupting the
+    // new tab's saved position with a value that belongs to a different, possibly much longer,
+    // document. That corrupted value then reproduces on every future open of that file, restart
+    // included, since it's now what's on disk.
+    //
+    // Persisting the outgoing tab's position directly here, rather than leaving it to the
+    // timer, closes that race -- and also means a scroll immediately followed by a switch never
+    // loses its save the way relying purely on the 600ms debounce would.
+    if (_scrollSaveTimer) { clearTimeout(_scrollSaveTimer); _scrollSaveTimer = null; }
     if (_activeTabId && _activeTabId in _tabDirs) {
-        _scrollPositions[_activeTabId] = document.getElementById('content-area').scrollTop;
+        _persistScrollPosition(_activeTabId, document.getElementById('content-area').scrollTop);
     }
     _activeTabId = id;
     _activeTabDir = _tabDirs[id] || null;
@@ -560,18 +584,23 @@ function removeTab(id) {
     if (item) item.remove();
 }
 
-// Persists the active tab's scroll position to disk (via Program.cs -> settings.ScrollPositions,
-// keyed by file path) so it survives closing and reopening PrettyMark, not just switching tabs
-// within a session. Debounced 600ms after scrolling stops, rather than on every scroll event,
-// since a rapid scroll-fling would otherwise fire dozens of redundant saves for one motion.
+// Persists a tab's scroll position to disk (via Program.cs -> settings.ScrollPositions, keyed
+// by file path) so it survives closing and reopening PrettyMark, not just switching tabs within
+// a session -- and keeps the in-session cache in sync too. Shared by the debounced scroll
+// listener below and render()/reloadContent()'s stale-scrollTop self-heal.
+function _persistScrollPosition(id, scrollTop) {
+    _scrollPositions[id] = scrollTop;
+    window.chrome.webview.postMessage({ type: 'scroll_position', id: id, scrollTop: scrollTop });
+}
+
+// Debounced 600ms after scrolling stops, rather than on every scroll event, since a rapid
+// scroll-fling would otherwise fire dozens of redundant saves for one motion.
 var _scrollSaveTimer = null;
 document.getElementById('content-area').addEventListener('scroll', function() {
     if (_scrollSaveTimer) clearTimeout(_scrollSaveTimer);
     _scrollSaveTimer = setTimeout(function() {
         if (!_activeTabId) return;
-        var scrollTop = document.getElementById('content-area').scrollTop;
-        _scrollPositions[_activeTabId] = scrollTop;  // keep the in-session cache in sync too
-        window.chrome.webview.postMessage({ type: 'scroll_position', id: _activeTabId, scrollTop: scrollTop });
+        _persistScrollPosition(_activeTabId, document.getElementById('content-area').scrollTop);
     }, 600);
 }, { passive: true });
 

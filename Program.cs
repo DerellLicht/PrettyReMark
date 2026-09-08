@@ -392,7 +392,7 @@ class MainForm : Form
         _currentLang = ResolveLanguageStatic(settings.Language);
         _strings = LoadTranslationsStatic(_currentLang);
 
-        Text = T("app_name");
+        UpdateTitle(null);
         MinimumSize = new System.Drawing.Size(400, 300);
         ApplySavedWindowBounds();
 
@@ -790,7 +790,7 @@ class MainForm : Form
             else
             {
                 activeTabId = null;
-                Text = T("app_name");
+                UpdateTitle(null);
                 await webView.ExecuteScriptAsync("showWelcome()");
             }
         }
@@ -859,7 +859,7 @@ class MainForm : Form
 
     private void UpdateTitle(TabInfo tab)
     {
-        var name = T("app_name");
+        var name = $"{T("app_name")} v{AppVersion.Current}";
         Text = tab != null ? $"{tab.FileName} \u2014 {name}" : name;
     }
 
