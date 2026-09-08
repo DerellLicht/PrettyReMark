@@ -11,12 +11,22 @@ do exactly what was requested... but debugging and analysis still require a huma
 The two of us together, can do almost *anything* !!
 
 ---
+Summary of added features:
+- Fixed links to image and html files, so they open in appropriate programs
+- added version number to About dialog (see `AppVersion.cs`)
+- moved main text colors to `colors.json`
+- save/restore size/position of dialog
+- Implement Options dialog and menu link
+- Make program recall current file position in *each* file, across document changes 
+  as well as program restarts.
+
+
 See [Changelog](CHANGELOG.md) for the full revision history.
 
 ---
 ## Existing history and readme from original author:
 
-[original eagle1 readme](https://gitlab.com/eagle1/prettymark/-/blob/main/README.md?ref_type=heads)
+[Original eagle1 readme](https://gitlab.com/eagle1/prettymark/-/blob/main/README.md?ref_type=heads)
 
 ## License
 
