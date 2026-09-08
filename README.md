@@ -20,4 +20,5 @@ See [Changelog](CHANGELOG.md) for the full revision history.
 
 ## License
 
-MIT
+[MIT](LICENSE.txt)
+
