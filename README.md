@@ -2,14 +2,6 @@
 
 A lightweight, native Markdown viewer for Windows with live reload and syntax highlighting.
 
-Notes on this revisited version of `PrettyReMark` ...
-I did the design specification, testing, and guidance on the revisions in this fork of the program.
-
-However: https://claude.ai/new did *all* of the coding and interpretation of the existing code.
-Claude is truly amazing; he implements complex designs in seconds, and they generally 
-do exactly what was requested... but debugging and analysis still require a human.
-The two of us together, can do almost *anything* !!
-
 ---
 Summary of added features:
 - Fixed links to image and html files, so they open in appropriate programs
@@ -21,6 +13,15 @@ Summary of added features:
   as well as program restarts.
 
 See [Changelog](CHANGELOG.md) for the full revision history.
+
+---
+Notes on this revisited version of `PrettyReMark` ...
+I did the design specification, testing, and guidance on the revisions in this fork of the program.
+
+However: https://claude.ai/new did *all* of the coding and interpretation of the existing code.
+Claude is truly amazing; he implements complex designs in seconds, and they generally 
+do exactly what was requested... but debugging and analysis still require a human.
+The two of us together, can do almost *anything* !!
 
 ---
 ## Existing history and readme from original author:
