@@ -3,7 +3,17 @@
 Native Markdown viewer for Windows with live reload and syntax highlighting.
 Renders `.md` files in a native WinForms window using WebView2 (EdgeChromium), with GitHub-flavored styling.
 
-**Repository:** https://gitlab.com/eagle1/prettymark
+**Upstream repository (original author, `eagle1`):** https://gitlab.com/eagle1/prettymark
+
+> **This file describes a fork.** Everything above the "Fork Additions" markers below is
+> `eagle1`'s original project as of upstream v1.00 — kept intact and unmodified for provenance,
+> since this fork is maintained with an eye toward eventually proposing changes back upstream.
+> Everything under those markers (`v1.01`–`v1.03`) was added afterward by the fork's maintainer,
+> Derell, working with Claude (Anthropic). See `CHANGELOG.md` for the version-by-version record.
+> If you're `eagle1` reading this after some time away: the short version is that a WinForms/
+> WebView2/AI-assisted-coding stack was clearly already something you were comfortable with
+> (see your own `CLAUDE.md` conventions below), so nothing past this point should be an
+> unfamiliar way of working — just a continuation of it, on a fork, while you were away.
 
 ## Features
 
@@ -23,11 +33,25 @@ Renders `.md` files in a native WinForms window using WebView2 (EdgeChromium), w
 - Welcome screen when launched without arguments
 - Multi-language support (i18n): 12 languages, auto-detect system language, runtime switching via View → Language, preference persisted in AppData
 
+---
+## Fork Additions (v1.01–v1.03, Derell + Claude) — begin
+---
+
+- Version number displayed in the About dialog, tracked in a dedicated `AppVersion.cs` constant
+- User-editable color overrides for the four base text/background colors (light + dark theme), stored in `colors.json` (AppData, sibling to `settings.json`), edited via a new Options dialog with the standard Windows color picker
+- Options dialog (new top-level "Options" menu item): first pass covers the four colors above; not yet a general settings surface
+- Window position, size, and maximized state persisted across relaunches, with a multi-monitor sanity check so a since-unplugged/resized monitor can't strand the window off-screen
+- Per-file scroll position memory: switching tabs returns you to where you were in each one, and — since most of Derell's files are reference documents (saved AI chat exports) he returns to specific remembered passages in, not just re-reads top to bottom — this now also survives closing and reopening PrettyMark entirely, keyed by file path in `settings.json`
+
+---
+## Fork Additions — end (see CHANGELOG.md for details) ---
+
 ## Project Structure
 
 ```
 PrettyMark.csproj              # .NET 8 project file
 Program.cs                     # Main application (entry point, COM interop, tab management)
+AppVersion.cs                  # [fork] Single-source-of-truth version constant, shown in About dialog
 nuget.config                   # NuGet feed configuration
 installer.nsi                  # NSIS installer script (cross-platform, produces Setup.exe)
 build-msix.ps1                 # PowerShell script to build MSIX installer (Windows only, for Store)
@@ -96,7 +120,12 @@ Output: `bin\msix\PrettyMark-1.0.0.0-win-x64.msix`
 
 ### Release artifacts
 
-Hosted on GitLab Releases: https://gitlab.com/eagle1/prettymark/-/releases
+Upstream (`eagle1`) hosts builds via GitLab Releases: https://gitlab.com/eagle1/prettymark/-/releases
+
+**[fork]** Not currently used here — this fork is built and run locally only, with plain annotated
+git tags (`v1.01`, `v1.02`, `v1.03`, ...) marking each version rather than full GitLab Release
+entries. Revisit if this fork ever needs to distribute a built `.exe` to someone other than its
+maintainer, or if changes get proposed back upstream.
 
 ## Usage
 
@@ -127,4 +156,19 @@ PrettyMark.exe
 - **Menu auto-close:** JS `mousedown` sends `postMessage({ type: 'click' })`, C# calls `HideDropDown()` only on visible dropdowns (calling on hidden ones steals focus from WebView2).
 - **Assets:** bundled via `<Content Include="assets\**\*">` in .csproj, copied to output directory
 - **i18n:** JSON files in `assets/lang/` (one per language, keyed `snake_case`). C# loads via `LoadTranslationsStatic()`, resolves language via `ResolveLanguageStatic()` (settings → system UI culture → "en" fallback). `T(key)` helper in both C# and JS. C# injects strings into JS via `ExecuteScriptAsync("setStrings({json})")`. `_applyStrings()` updates DOM elements. Adding a language = adding a JSON file (auto-discovered via directory scan).
-- **Messages JS→C#:** `open_url`, `switch_tab`, `close_tab`, `shortcut` (incl. `print`), `click`, `drawer_toggled`
+- **Messages JS→C#:** `open_url`, `switch_tab`, `close_tab`, `shortcut` (incl. `print`), `click`, `drawer_toggled`, `scroll_position` **[fork]**
+
+---
+### Fork Additions — architecture notes
+---
+
+- **Versioning:** `AppVersion.Current` (in `AppVersion.cs`) is the single source of truth, bumped alongside a new `CHANGELOG.md` entry. Pushed to JS once at startup via `ExecuteJs("setAppVersion(...)")`, mirroring the existing `setStrings()` i18n pattern; displayed in `showAbout()`.
+- **Color overrides:** `ColorConfig`/`ColorTheme` (in `Program.cs`) mirror `AppSettings`'s Load/Save shape but live in their own file, `colors.json` (AppData, sibling to `settings.json`) — kept separate because this one is meant to be hand-edited, unlike internal program state. On first run, `ColorConfig.Load()` writes out the defaults so there's something to find. Pushed to JS via `setColorOverrides()`, which builds a `<style id="color-overrides">` block appended to `<head>` — loading after the theme `<link>` in the cascade lets it win without editing `github-markdown[-dark].css` itself. Re-applied in `setDarkMode()` on every theme flip.
+- **Options dialog:** `OptionsDialog` (WinForms `Form`, in `Program.cs`), opened via a new top-level "Options" menu item (bare click target, no dropdown). First pass: the four colors above, each a label + swatch + `...` button opening the standard `ColorDialog`. Deliberately not docked/auto-sized as a `Form` — `Form.AutoSize` doesn't correctly measure docked children's content size, so the dialog instead auto-sizes its two panels independently, then explicitly sizes the `Form`'s `ClientSize` around them. `OnOk` writes back to `colorConfig`, persists to `colors.json`, and re-pushes via the same `setColorOverrides()` call used at startup — no separate "live preview" plumbing needed.
+- **Window position/size persistence:** `AppSettings.WindowX/Y/Width/Height/WindowMaximized` (nullable, so "never saved" is distinguishable from "saved at 0,0"). `ApplySavedWindowBounds()` restores them at startup, but only after `IsRectVisibleOnAnyScreen()` confirms the saved rectangle still overlaps some current monitor by a reasonable margin — guards against a stranded off-screen window after an unplugged/resized/reconfigured monitor. Saved in `OnFormClosing` via `SaveWindowBounds()`, which uses `RestoreBounds` (not `Bounds`) when maximized, since `Bounds` while maximized is the full-screen rectangle, not the one worth restoring to.
+- **Per-file scroll position memory:** two tiers, layered rather than redundant.
+  - *In-session (tab switching):* `_scrollPositions` (JS, keyed by ephemeral tab id) is written in `activateTab()` right before switching away from a tab, and read back in `render()` (its `restoreTabScroll` parameter defaults `true`). `reloadContent()` — used for the same-tab file-watcher refresh, not a tab switch — passes `restoreTabScroll:false` instead and does its own live-scrollTop capture/restore, since `activateTab()` never runs for that case.
+  - *Persisted (across restarts):* `AppSettings.ScrollPositions` (keyed by full file path, `OrdinalIgnoreCase` — re-applied after every JSON `Load()`, since `JsonSerializer` doesn't preserve a custom `Dictionary` comparer through deserialization). JS posts a `scroll_position` message ~600ms after scrolling settles (debounced, not per-event); `BuildTabJson()` (shared by `OpenTab` and `RestoreSession`) seeds each tab's initial in-session position from this store when a tab is created.
+  - `RestoreSession`'s tab-creation loop calls `addTab(tabJson, false)` — the second, `activate` argument matters here: `addTab()` normally auto-activates via `activateTab()`, but during session restore that would fire once per tab *before any of them are rendered*, each call capturing a bogus `0` `scrollTop` that clobbers the just-seeded real value for every tab except (accidentally) none at all. Registering tabs inactive during the loop, then activating only the intended one afterward, was the actual fix.
+  - Restoring a `scrollTop` beyond a file's current scrollable range (e.g. content trimmed externally since the position was saved) relies on the browser's native clamping of `element.scrollTop` — lands at the bottom rather than erroring. This does not, and cannot, account for the saved position referring to different content if text *above* it changed — the mechanism is a raw pixel offset, not a reference to specific text.
+
