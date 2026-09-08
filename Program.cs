@@ -12,7 +12,7 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace PrettyMark;
+namespace PrettyReMark;
 
 // --- App Settings ---
 class AppSettings
@@ -33,7 +33,7 @@ class AppSettings
     public bool WindowMaximized { get; set; }
 
     // Last scroll position within each file, keyed by full file path, so reopening a document
-    // -- across tab switches within a session AND across closing/reopening PrettyMark entirely
+    // -- across tab switches within a session AND across closing/reopening PrettyReMark entirely
     // -- returns you to where you left off rather than the top. OrdinalIgnoreCase because
     // Windows paths are case-insensitive; re-applied after every Load() below since
     // JsonSerializer.Deserialize builds a fresh Dictionary with the default (case-sensitive)
@@ -49,7 +49,7 @@ class AppSettings
 
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PrettyMark", "settings.json");
+        "PrettyReMark", "settings.json");
 
     private static readonly string[] ValidExtensions = { ".md", ".markdown", ".txt" };
 
@@ -88,7 +88,7 @@ class AppSettings
 // --- Color config ---
 // User-editable theme color overrides. Separate from AppSettings/settings.json
 // (internal program state) since this file is meant to be hand-edited -- it's
-// only read at startup, so edit it while PrettyMark is closed.
+// only read at startup, so edit it while PrettyReMark is closed.
 class ColorTheme
 {
     public string TextColor { get; set; }
@@ -108,7 +108,7 @@ class ColorTheme
 class ColorConfig
 {
     public string _readme { get; set; } =
-        "PrettyMark color overrides. Edit while the program is closed -- changes are only read at startup.";
+        "PrettyReMark color overrides. Edit while the program is closed -- changes are only read at startup.";
     public ColorTheme Light { get; set; } = new()
     {
         TextColor = "#1f2328", BackgroundColor = "#ffffff",
@@ -126,7 +126,7 @@ class ColorConfig
 
     private static readonly string ConfigPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PrettyMark", "colors.json");
+        "PrettyReMark", "colors.json");
 
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
@@ -198,12 +198,12 @@ class TabInfo
 // --- Entry point ---
 static class Program
 {
-    private const string MutexName = "PrettyMark_SingleInstance_Mutex";
-    private const string EventName = "PrettyMark_SingleInstance_Event";
+    private const string MutexName = "PrettyReMark_SingleInstance_Mutex";
+    private const string EventName = "PrettyReMark_SingleInstance_Event";
 
     private static readonly string OpenRequestFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PrettyMark", "open-request.txt");
+        "PrettyReMark", "open-request.txt");
 
     [STAThread]
     static void Main(string[] args)
@@ -219,7 +219,7 @@ static class Program
             var msg = string.Format(
                 errorStrings.GetValueOrDefault("error_file_not_found", "File not found: {0}"),
                 filePath);
-            MessageBox.Show(msg, errorStrings.GetValueOrDefault("app_name", "PrettyMark"),
+            MessageBox.Show(msg, errorStrings.GetValueOrDefault("app_name", "PrettyReMark"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
@@ -495,7 +495,7 @@ class MainForm : Form
 
         var userDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "PrettyMark", "WebView2");
+            "PrettyReMark", "WebView2");
         var env = await CoreWebView2Environment.CreateAsync(null, userDataDir);
         await webView.EnsureCoreWebView2Async(env);
 
@@ -508,7 +508,7 @@ class MainForm : Form
         // host, "doc.local". We intercept requests live (WebResourceRequested) rather than using
         // SetVirtualHostNameToFolderMapping, because that API's folder can't be safely re-pointed
         // per tab: per Microsoft's own docs, once the page's resource loaders exist (which they do,
-        // since PrettyMark's page loads once at startup and tabs are swapped via innerHTML, never a
+        // since PrettyReMark's page loads once at startup and tabs are swapped via innerHTML, never a
         // real navigation), mapping changes may not take effect without a full page reload.
         webView.CoreWebView2.AddWebResourceRequestedFilter(
             "https://doc.local/*", CoreWebView2WebResourceContext.Image, CoreWebView2WebResourceRequestSourceKinds.Document);
@@ -532,7 +532,7 @@ class MainForm : Form
                 if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
                     BeginInvoke(() => OpenTab(path));
                 else
-                    // Not a type PrettyMark renders itself (e.g. .html) — hand off to the OS default app.
+                    // Not a type PrettyReMark renders itself (e.g. .html) — hand off to the OS default app.
                     // Covers Ctrl+click / middle-click, which land here instead of the JS click handler.
                     BeginInvoke(() => System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
@@ -682,7 +682,7 @@ class MainForm : Form
                 settings.Save();
             }
         }
-        catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"PrettyMark: WebMessage parse failed: {ex.Message}"); }
+        catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"PrettyReMark: WebMessage parse failed: {ex.Message}"); }
     }
 
     // --- Tab operations ---
@@ -835,7 +835,7 @@ class MainForm : Form
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Trace.WriteLine($"PrettyMark: doc.local resource request failed: {ex.Message}");
+            System.Diagnostics.Trace.WriteLine($"PrettyReMark: doc.local resource request failed: {ex.Message}");
             e.Response = webView.CoreWebView2.Environment.CreateWebResourceResponse(null, 500, "Error", "");
         }
     }
@@ -1475,7 +1475,7 @@ class OptionsDialog : Form
         }
     }
 
-    // Resets every swatch (both themes) to PrettyMark's built-in default colors, live in the
+    // Resets every swatch (both themes) to PrettyReMark's built-in default colors, live in the
     // dialog -- lets someone who's experimented their way into an unreadable combination get
     // back to a known-good state without leaving the dialog or hand-editing colors.json. Doesn't
     // touch the Dark Mode / Show Sidebar checkboxes -- those aren't colors, and the button is

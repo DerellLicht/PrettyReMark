@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PrettyMark</title>
+<title>PrettyReMark</title>
 <link rel="icon" href="favicon.ico">
 <link id="theme-md" rel="stylesheet" href="github-markdown.css">
 <link id="theme-hl" rel="stylesheet" href="highlight-github.min.css">
@@ -334,12 +334,15 @@ function _applyStrings() {
     var zInSpan = document.querySelector('#zoom-control span[onclick="zoomIn()"]');
     if (zInSpan) zInSpan.title = T('tooltip_zoom_in');
 
-    // Re-render welcome/about if visible
-    if (_el.querySelector('h1') && _el.querySelector('h1').textContent === 'PrettyMark' &&
-        _el.style.cssText.indexOf('justify-content') !== -1) {
+    // Re-render welcome/about if visible. Checked via a stable id (welcome-screen) rather than
+    // matching the h1's text against a hardcoded app name -- that broke the moment the app was
+    // renamed (this exact rename), since T('app_name') had already changed by the time this ran
+    // but the literal string here hadn't. An id has no name baked into it, so it can't drift out
+    // of sync with the app's display name again.
+    if (document.getElementById('welcome-screen')) {
         showWelcome();
     }
-    var aboutEl = document.getElementById('prettymark-about');
+    var aboutEl = document.getElementById('app-about');
     if (aboutEl) { aboutEl.remove(); showAbout(); }
 }
 
@@ -424,7 +427,7 @@ function reloadContent(md) {
 }
 
 // Relative image paths get resolved by the browser against https://app.local/index.html
-// (PrettyMark's own UI origin) rather than the document's actual folder, causing a broken-image
+// (PrettyReMark's own UI origin) rather than the document's actual folder, causing a broken-image
 // icon. Program.cs maps "doc.local" to the active tab's folder on every render, so point any
 // relative/local src there instead. Same decode-then-encode-once normalization as local links,
 // since marked.js has already percent-encoded these src values by the time we see them.
@@ -441,7 +444,7 @@ function _resolveLocalImages() {
 function showWelcome() {
     _el.style.cssText = 'display:flex;justify-content:center;align-items:center;min-height:80vh;';
     _el.innerHTML =
-        '<div style="text-align:center;">' +
+        '<div id="welcome-screen" style="text-align:center;">' +
         '<h1 style="border:none;padding:0;">' + _esc(T('app_name')) + '</h1>' +
         '<p style="color:#656d76;font-size:18px;">' + _esc(T('welcome_subtitle')) + '</p>' +
         '<hr style="margin:24px auto;width:200px;">' +
@@ -585,7 +588,7 @@ function removeTab(id) {
 }
 
 // Persists a tab's scroll position to disk (via Program.cs -> settings.ScrollPositions, keyed
-// by file path) so it survives closing and reopening PrettyMark, not just switching tabs within
+// by file path) so it survives closing and reopening PrettyReMark, not just switching tabs within
 // a session -- and keeps the in-session cache in sync too. Shared by the debounced scroll
 // listener below and render()/reloadContent()'s stale-scrollTop self-heal.
 function _persistScrollPosition(id, scrollTop) {
@@ -612,10 +615,10 @@ function _esc(s) {
 
 // --- About ---
 function showAbout() {
-    var existing = document.getElementById('prettymark-about');
+    var existing = document.getElementById('app-about');
     if (existing) { existing.remove(); return; }
     var o = document.createElement('div');
-    o.id = 'prettymark-about';
+    o.id = 'app-about';
     o.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;';
     var bg = _dark ? '#161b22' : '#fff';
     var fg = _dark ? '#f0f6fc' : '#1f2328';
@@ -624,28 +627,28 @@ function showAbout() {
     var btnBg = _dark ? '#21262d' : '#f6f8fa';
     var btnBorder = _dark ? '#30363d' : '#d1d9e0';
     o.innerHTML = '<div style="background:' + bg + ';border-radius:12px;overflow:hidden;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:480px;max-height:90vh;display:flex;flex-direction:column;position:relative;">'
-        + '<button id="prettymark-about-close" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border:none;background:rgba(0,0,0,0.3);color:#fff;font-size:18px;line-height:1;border-radius:6px;cursor:pointer;z-index:1;">&times;</button>'
-        + '<div style="background:' + (bg === '#fff' ? '#f6f8fa' : '#0d1117') + ';padding:24px;flex-shrink:0;"><img src="logo.png" alt="PrettyMark" style="max-width:100%;max-height:40vh;display:block;margin:0 auto;"></div>'
+        + '<button id="app-about-close" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border:none;background:rgba(0,0,0,0.3);color:#fff;font-size:18px;line-height:1;border-radius:6px;cursor:pointer;z-index:1;">&times;</button>'
+        + '<div style="background:' + (bg === '#fff' ? '#f6f8fa' : '#0d1117') + ';padding:24px;flex-shrink:0;"><img src="logo.png" alt="' + _esc(T('app_name')) + '" style="max-width:100%;max-height:40vh;display:block;margin:0 auto;"></div>'
         + '<div style="padding:20px 32px 28px;">'
         + '<h2 style="margin:0 0 4px 0;color:' + fg + ';">' + _esc(T('app_name')) + '</h2>'
         + (_version ? '<p style="margin:0 0 8px 0;color:' + sub + ';font-size:12px;">v' + _esc(_version) + '</p>' : '')
         + '<p style="margin:0 0 12px 0;color:' + sub + ';font-size:14px;">' + _esc(T('about_description')) + '</p>'
         + '<a href="https://gitlab.com/DerellLicht/pretty-mark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/pretty-mark</a>'
-        + '<br><br><button id="prettymark-about-ok" style="padding:6px 20px;border:1px solid ' + btnBorder + ';border-radius:6px;background:' + btnBg + ';color:' + fg + ';cursor:pointer;font-size:14px;">OK</button>'
+        + '<br><br><button id="app-about-ok" style="padding:6px 20px;border:1px solid ' + btnBorder + ';border-radius:6px;background:' + btnBg + ';color:' + fg + ';cursor:pointer;font-size:14px;">OK</button>'
         + '</div></div>';
     var closeAbout = function() { o.remove(); document.removeEventListener('keydown', escHandler); };
     var escHandler = function(e) { if (e.key === 'Escape') closeAbout(); };
     o.addEventListener('click', function(e) { if (e.target === o) closeAbout(); });
     document.body.appendChild(o);
-    document.getElementById('prettymark-about-ok').addEventListener('click', closeAbout);
-    document.getElementById('prettymark-about-close').addEventListener('click', closeAbout);
+    document.getElementById('app-about-ok').addEventListener('click', closeAbout);
+    document.getElementById('app-about-close').addEventListener('click', closeAbout);
     document.addEventListener('keydown', escHandler);
 }
 
 // External links — open in system browser. Local links (relative or file:///) — resolve
-// against the CURRENT TAB'S OWN FOLDER and hand off to PrettyMark's tab list or the OS default
+// against the CURRENT TAB'S OWN FOLDER and hand off to PrettyReMark's tab list or the OS default
 // app. We must use the raw href attribute, not the browser-resolved a.href: the document's base
-// URL is https://app.local/index.html (PrettyMark's own virtual host), so a.href would resolve
+// URL is https://app.local/index.html (PrettyReMark's own virtual host), so a.href would resolve
 // any relative link against app.local instead of the folder the file actually lives in.
 document.addEventListener('click', function(e) {
     var a = e.target.closest('a[href]');

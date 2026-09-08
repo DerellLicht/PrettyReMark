@@ -1,5 +1,5 @@
 {
-  "app_name": "PrettyMark",
+  "app_name": "PrettyReMark",
   "menu_file": "&Dosya",
   "menu_open": "&A\u00e7",
   "menu_close_tab": "Sekmeyi &Kapat",
@@ -15,7 +15,7 @@
   "menu_fullscreen": "&Tam Ekran",
   "menu_language": "&Dil",
   "menu_help": "?",
-  "menu_about": "PrettyMark &Hakk\u0131nda",
+  "menu_about": "PrettyReMark &Hakk\u0131nda",
   "dialog_open_title": "Markdown Dosyas\u0131 A\u00e7",
   "dialog_filter_md": "Markdown Dosyalar\u0131",
   "dialog_filter_all": "T\u00fcm Dosyalar",

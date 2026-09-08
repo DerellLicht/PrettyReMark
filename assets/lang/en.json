@@ -1,5 +1,5 @@
 {
-  "app_name": "PrettyMark",
+  "app_name": "PrettyReMark",
   "menu_file": "&File",
   "menu_open": "&Open",
   "menu_close_tab": "&Close Tab",
@@ -15,7 +15,7 @@
   "menu_fullscreen": "&Full Screen",
   "menu_language": "&Language",
   "menu_help": "Help",
-  "menu_about": "&About PrettyMark",
+  "menu_about": "&About PrettyReMark",
   "dialog_open_title": "Open Markdown File",
   "dialog_filter_md": "Markdown Files",
   "dialog_filter_all": "All Files",

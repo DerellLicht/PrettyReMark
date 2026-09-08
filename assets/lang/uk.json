@@ -1,5 +1,5 @@
 {
-  "app_name": "PrettyMark",
+  "app_name": "PrettyReMark",
   "menu_file": "&\u0424\u0430\u0439\u043b",
   "menu_open": "&\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438",
   "menu_close_tab": "&\u0417\u0430\u043a\u0440\u0438\u0442\u0438 \u0432\u043a\u043b\u0430\u0434\u043a\u0443",
@@ -15,7 +15,7 @@
   "menu_fullscreen": "&\u041f\u043e\u0432\u043d\u0438\u0439 \u0435\u043a\u0440\u0430\u043d",
   "menu_language": "&\u041c\u043e\u0432\u0430",
   "menu_help": "?",
-  "menu_about": "&\u041f\u0440\u043e PrettyMark",
+  "menu_about": "&\u041f\u0440\u043e PrettyReMark",
   "dialog_open_title": "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0444\u0430\u0439\u043b Markdown",
   "dialog_filter_md": "\u0424\u0430\u0439\u043b\u0438 Markdown",
   "dialog_filter_all": "\u0423\u0441\u0456 \u0444\u0430\u0439\u043b\u0438",

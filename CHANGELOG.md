@@ -1,5 +1,8 @@
 # PrettyMark Changelog
 
+## [1.06] - 2026-09-08
+- renaming program to PrettyReMark, in preperation for distributing it
+
 ## [1.05] - 2026-09-08
 - final code and layout tweaking
 
