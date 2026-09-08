@@ -5,5 +5,5 @@ namespace PrettyMark;
 // CHANGELOG.md entry -- the two should always move together.
 static class AppVersion
 {
-    public const string Current = "1.04";
+    public const string Current = "1.05";
 }

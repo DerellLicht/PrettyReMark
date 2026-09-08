@@ -103,7 +103,6 @@ class ColorTheme
     public string SidebarActiveBackgroundColor { get; set; }
     public string SidebarActiveBarColor { get; set; }
     public string SidebarHoverBackgroundColor { get; set; }
-    public string PageBackgroundColor { get; set; }
 }
 
 class ColorConfig
@@ -115,16 +114,14 @@ class ColorConfig
         TextColor = "#1f2328", BackgroundColor = "#ffffff",
         SidebarBackgroundColor = "#f6f8fa", SidebarFilenameColor = "#1f2328",
         SidebarPathColor = "#656d76", SidebarActiveBackgroundColor = "#ddf4ff",
-        SidebarActiveBarColor = "#0969da", SidebarHoverBackgroundColor = "#e8ebef",
-        PageBackgroundColor = "#ffffff"
+        SidebarActiveBarColor = "#0969da", SidebarHoverBackgroundColor = "#e8ebef"
     };
     public ColorTheme Dark { get; set; } = new()
     {
         TextColor = "#f0f6fc", BackgroundColor = "#0d1117",
         SidebarBackgroundColor = "#161b22", SidebarFilenameColor = "#f0f6fc",
         SidebarPathColor = "#8b949e", SidebarActiveBackgroundColor = "#1a2332",
-        SidebarActiveBarColor = "#4493f8", SidebarHoverBackgroundColor = "#1c2129",
-        PageBackgroundColor = "#0d1117"
+        SidebarActiveBarColor = "#4493f8", SidebarHoverBackgroundColor = "#1c2129"
     };
 
     private static readonly string ConfigPath = Path.Combine(
@@ -178,8 +175,7 @@ class ColorConfig
         SidebarPathColor = loaded.SidebarPathColor ?? defaults.SidebarPathColor,
         SidebarActiveBackgroundColor = loaded.SidebarActiveBackgroundColor ?? defaults.SidebarActiveBackgroundColor,
         SidebarActiveBarColor = loaded.SidebarActiveBarColor ?? defaults.SidebarActiveBarColor,
-        SidebarHoverBackgroundColor = loaded.SidebarHoverBackgroundColor ?? defaults.SidebarHoverBackgroundColor,
-        PageBackgroundColor = loaded.PageBackgroundColor ?? defaults.PageBackgroundColor
+        SidebarHoverBackgroundColor = loaded.SidebarHoverBackgroundColor ?? defaults.SidebarHoverBackgroundColor
     };
 
     public void Save()
@@ -1209,7 +1205,7 @@ class OptionsDialog : Form
     // Each color row's Light/Dark swatch pair, named after the ColorTheme property it edits.
     private (Panel light, Panel dark) textSwatches, bgSwatches, sidebarBgSwatches,
         sidebarFilenameSwatches, sidebarPathSwatches, sidebarActiveBgSwatches,
-        sidebarActiveBarSwatches, sidebarHoverBgSwatches, pageBgSwatches;
+        sidebarActiveBarSwatches, sidebarHoverBgSwatches;
 
     private CheckBox darkModeCheck, sidebarCheck;
 
@@ -1230,11 +1226,12 @@ class OptionsDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         Padding = new Padding(12);
 
-        // layout/buttonPanel are deliberately NOT docked. AutoSize on a docked control reports
-        // "whatever space the parent leaves," not its actual content size -- which is what
-        // shrank this dialog down to almost nothing. Left undocked, AutoSize instead resizes
-        // each panel to its real preferred size, and we then size and position everything
-        // ourselves below, so the Form ends up exactly as big as its content actually needs.
+        // layout is deliberately NOT docked. AutoSize on a docked control reports "whatever
+        // space the parent leaves," not its actual content size -- which is what shrank this
+        // dialog down to almost nothing at one point. Left undocked, AutoSize instead resizes it
+        // to its real preferred size, and ClientSize is set from that below, so the Form ends up
+        // exactly as big as its content actually needs -- everything (grid, dividers, checkboxes,
+        // and the buttons) now lives in this one panel, so there's nothing else to position.
         //
         // 7 columns: row label | vertical divider | light swatch | light "..." button |
         // vertical divider | dark swatch | dark "..." button. The two narrow gutter columns
@@ -1274,47 +1271,76 @@ class OptionsDialog : Form
             current.Light.SidebarActiveBarColor, current.Dark.SidebarActiveBarColor);
         sidebarHoverBgSwatches = AddColorRow(layout, T("options_sidebar_hover_bg", "Hovered Item Background"),
             current.Light.SidebarHoverBackgroundColor, current.Dark.SidebarHoverBackgroundColor);
-        pageBgSwatches = AddColorRow(layout, T("options_page_bg", "Page Background"),
-            current.Light.PageBackgroundColor, current.Dark.PageBackgroundColor);
 
         // Captured now, with the color grid's row count final but before the checkbox section
         // below exists -- so the vertical dividers painted by SetUpColumnDividers (below) span
-        // exactly the header + 8 color rows, and stop short of the (full-width, no columns to
+        // exactly the header + color rows, and stop short of the (full-width, no columns to
         // separate) checkbox section underneath.
         int colorGridRows = layout.RowCount;
         SetUpColumnDividers(layout, colorGridRows);
 
         AddDivider(layout);
 
-        darkModeCheck = AddCheckboxRow(layout, T("options_dark_mode", "Dark Mode"), darkMode);
-        sidebarCheck = AddCheckboxRow(layout, T("options_sidebar", "Show Sidebar"), sidebarVisible);
+        // Footer: two rows, each pairing a checkbox (col 0, same spot as every color row's
+        // label) with buttons filling the Light+Dark columns to its right -- symmetric with the
+        // color grid above rather than a separate button strip below it. "Dark Mode" pairs with
+        // a single wide Reset button spanning both column groups (cols 2-6); "Show Sidebar"
+        // pairs with OK centered under Light (cols 2-3) and Cancel centered under Dark (cols
+        // 5-6), so OK/Cancel land directly under the "Light Theme"/"Dark Theme" headers.
+        int darkModeRow = layout.RowCount;
+        layout.RowCount = darkModeRow + 1;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var buttonPanel = new FlowLayoutPanel
+        darkModeCheck = new CheckBox
         {
-            FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Text = T("options_dark_mode", "Dark Mode"), AutoSize = true,
+            Checked = darkMode, Anchor = AnchorStyles.Left, Margin = new Padding(0, 4, 0, 4)
         };
-        var cancelBtn = new Button { Text = T("options_cancel", "Cancel"), DialogResult = DialogResult.Cancel };
-        var okBtn = new Button { Text = T("options_ok", "OK") };
+        layout.Controls.Add(darkModeCheck, 0, darkModeRow);
+
+        var resetBtn = new Button
+        {
+            Text = T("options_reset", "Reset to Defaults"), Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 4)
+        };
+        resetBtn.Click += (s, e) => ResetColorsToDefaults();
+        layout.Controls.Add(resetBtn, 2, darkModeRow);
+        layout.SetColumnSpan(resetBtn, 5); // cols 2..6: light swatch/button, gutter, dark swatch/button
+
+        int sidebarRow = layout.RowCount;
+        layout.RowCount = sidebarRow + 1;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        sidebarCheck = new CheckBox
+        {
+            Text = T("options_sidebar", "Show Sidebar"), AutoSize = true,
+            Checked = sidebarVisible, Anchor = AnchorStyles.Left, Margin = new Padding(0, 4, 0, 4)
+        };
+        layout.Controls.Add(sidebarCheck, 0, sidebarRow);
+
+        var okBtn = new Button { Text = T("options_ok", "OK"), Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 4) };
         okBtn.Click += (s, e) => OnOk();
-        buttonPanel.Controls.Add(cancelBtn);
-        buttonPanel.Controls.Add(okBtn);
+        layout.Controls.Add(okBtn, 2, sidebarRow);
+        layout.SetColumnSpan(okBtn, 2); // cols 2-3, under "Light Theme"
+
+        var cancelBtn = new Button
+        {
+            Text = T("options_cancel", "Cancel"), DialogResult = DialogResult.Cancel,
+            Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 4)
+        };
+        layout.Controls.Add(cancelBtn, 5, sidebarRow);
+        layout.SetColumnSpan(cancelBtn, 2); // cols 5-6, under "Dark Theme"
 
         Controls.Add(layout);
-        Controls.Add(buttonPanel);
         AcceptButton = okBtn;
         CancelButton = cancelBtn;
 
-        // Now that both panels have auto-sized to their real content, place buttonPanel below
-        // layout and right-aligned under it, then shrink-wrap the Form's ClientSize around the
-        // two -- this is what actually replaces the broken Form.AutoSize from before.
-        const int gapBetweenRows = 12;
-        buttonPanel.Location = new System.Drawing.Point(
-            layout.Right - buttonPanel.Width, layout.Bottom + gapBetweenRows);
+        // Everything (color grid, dividers, checkboxes, and now the buttons too) lives in one
+        // TableLayoutPanel, so the Form's ClientSize is just Padding + layout's own size -- no
+        // separate button-row height to add underneath, and so no leftover blank space at the
+        // bottom the way there was with the old below-the-grid buttonPanel/resetPanel.
         ClientSize = new System.Drawing.Size(
             Padding.Left + layout.Width + Padding.Right,
-            Padding.Top + layout.Height + gapBetweenRows + buttonPanel.Height + Padding.Bottom);
+            Padding.Top + layout.Height + Padding.Bottom);
     }
 
     // Like MainForm's T(), but with an explicit fallback rather than the key itself, so the
@@ -1438,22 +1464,6 @@ class OptionsDialog : Form
         layout.SetColumnSpan(line, 7);
     }
 
-    // Adds a full-width checkbox row (used for the non-color options moved here from the View menu).
-    private CheckBox AddCheckboxRow(TableLayoutPanel layout, string label, bool initialChecked)
-    {
-        int row = layout.RowCount;
-        layout.RowCount = row + 1;
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        var check = new CheckBox
-        {
-            Text = label, AutoSize = true, Checked = initialChecked, Margin = new Padding(0, 4, 0, 4)
-        };
-        layout.Controls.Add(check, 0, row);
-        layout.SetColumnSpan(check, 7);
-        return check;
-    }
-
     // Opens the standard Windows color-selection dialog pre-set to the swatch's current color,
     // and updates the swatch's BackColor if the user confirms a new one.
     private void PickColor(Panel swatch)
@@ -1463,6 +1473,30 @@ class OptionsDialog : Form
         {
             swatch.BackColor = dlg.Color;
         }
+    }
+
+    // Resets every swatch (both themes) to PrettyMark's built-in default colors, live in the
+    // dialog -- lets someone who's experimented their way into an unreadable combination get
+    // back to a known-good state without leaving the dialog or hand-editing colors.json. Doesn't
+    // touch the Dark Mode / Show Sidebar checkboxes -- those aren't colors, and the button is
+    // scoped to "default colors" per its label. Nothing is written to disk until OK is clicked.
+    private void ResetColorsToDefaults()
+    {
+        var defaults = new ColorConfig();
+        SetSwatchPair(textSwatches, defaults.Light.TextColor, defaults.Dark.TextColor);
+        SetSwatchPair(bgSwatches, defaults.Light.BackgroundColor, defaults.Dark.BackgroundColor);
+        SetSwatchPair(sidebarBgSwatches, defaults.Light.SidebarBackgroundColor, defaults.Dark.SidebarBackgroundColor);
+        SetSwatchPair(sidebarFilenameSwatches, defaults.Light.SidebarFilenameColor, defaults.Dark.SidebarFilenameColor);
+        SetSwatchPair(sidebarPathSwatches, defaults.Light.SidebarPathColor, defaults.Dark.SidebarPathColor);
+        SetSwatchPair(sidebarActiveBgSwatches, defaults.Light.SidebarActiveBackgroundColor, defaults.Dark.SidebarActiveBackgroundColor);
+        SetSwatchPair(sidebarActiveBarSwatches, defaults.Light.SidebarActiveBarColor, defaults.Dark.SidebarActiveBarColor);
+        SetSwatchPair(sidebarHoverBgSwatches, defaults.Light.SidebarHoverBackgroundColor, defaults.Dark.SidebarHoverBackgroundColor);
+    }
+
+    private static void SetSwatchPair((Panel light, Panel dark) swatches, string lightHex, string darkHex)
+    {
+        swatches.light.BackColor = System.Drawing.ColorTranslator.FromHtml(lightHex);
+        swatches.dark.BackColor = System.Drawing.ColorTranslator.FromHtml(darkHex);
     }
 
     // Builds ColorResult/DarkModeResult/SidebarResult from the dialog's current controls and
@@ -1482,8 +1516,7 @@ class OptionsDialog : Form
                 SidebarPathColor = Hex(sidebarPathSwatches.light),
                 SidebarActiveBackgroundColor = Hex(sidebarActiveBgSwatches.light),
                 SidebarActiveBarColor = Hex(sidebarActiveBarSwatches.light),
-                SidebarHoverBackgroundColor = Hex(sidebarHoverBgSwatches.light),
-                PageBackgroundColor = Hex(pageBgSwatches.light)
+                SidebarHoverBackgroundColor = Hex(sidebarHoverBgSwatches.light)
             },
             Dark = new ColorTheme
             {
@@ -1494,8 +1527,7 @@ class OptionsDialog : Form
                 SidebarPathColor = Hex(sidebarPathSwatches.dark),
                 SidebarActiveBackgroundColor = Hex(sidebarActiveBgSwatches.dark),
                 SidebarActiveBarColor = Hex(sidebarActiveBarSwatches.dark),
-                SidebarHoverBackgroundColor = Hex(sidebarHoverBgSwatches.dark),
-                PageBackgroundColor = Hex(pageBgSwatches.dark)
+                SidebarHoverBackgroundColor = Hex(sidebarHoverBgSwatches.dark)
             }
         };
         DarkModeResult = darkModeCheck.Checked;

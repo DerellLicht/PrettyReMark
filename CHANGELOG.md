@@ -1,5 +1,8 @@
 # PrettyMark Changelog
 
+## [1.05] - 2026-09-08
+- final code and layout tweaking
+
 ## [1.04] - 2026-09-08
 - update documents (including README.md, LICENSE.txt)
 - added colors and options to Options dialog

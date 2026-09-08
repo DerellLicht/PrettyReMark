@@ -117,7 +117,7 @@ body.dark .tab-close:hover { background: #30363d; }
 
 /* Content area */
 #content-area { flex: 1; overflow-y: auto; }
-.markdown-body { padding: 32px 40px; max-width: 860px; margin: 0 auto; }
+.markdown-body { padding: 32px 40px; }
 
 /* Status bar */
 #status-bar {
@@ -272,12 +272,12 @@ function _applyColorOverrides() {
     // is swapped by pointing #theme-md at a whole different stylesheet, not a body.dark class --
     // so an unscoped override here always outranks/out-orders it regardless of theme.
     //
-    // The sidebar/page selectors below are different: their dark-mode colors come from
-    // "body.dark X" rules living alongside the plain "X" light rules in that same <head> style
-    // block, and "body.dark X" is MORE specific than a bare "X". So when dark mode is active,
-    // our override has to be written as "body.dark X" too, or the base dark rule would win over
-    // it despite this <style> block coming later in the document. `scope` below adds that prefix
-    // only when it's actually needed.
+    // The sidebar selectors below are different: their dark-mode colors come from "body.dark X"
+    // rules living alongside the plain "X" light rules in that same <head> style block, and
+    // "body.dark X" is MORE specific than a bare "X". So when dark mode is active, our override
+    // has to be written as "body.dark X" too, or the base dark rule would win over it despite
+    // this <style> block coming later in the document. `scope` below adds that prefix (as a
+    // descendant selector -- these are all genuine descendants of body) only when it's needed.
     var scope = _dark ? 'body.dark ' : '';
     var rules = '';
 
@@ -286,7 +286,6 @@ function _applyColorOverrides() {
     if (theme.BackgroundColor) docRules += 'background-color:' + theme.BackgroundColor + ';';
     if (docRules) rules += '.markdown-body{' + docRules + '}';
 
-    if (theme.PageBackgroundColor) rules += scope + 'body{background-color:' + theme.PageBackgroundColor + ';}';
     if (theme.SidebarBackgroundColor) rules += scope + '#drawer{background:' + theme.SidebarBackgroundColor + ';}';
     if (theme.SidebarFilenameColor) rules += scope + '.drawer-filename{color:' + theme.SidebarFilenameColor + ';}';
     if (theme.SidebarPathColor) rules += scope + '.drawer-path{color:' + theme.SidebarPathColor + ';}';
@@ -602,7 +601,7 @@ function showAbout() {
         + '<h2 style="margin:0 0 4px 0;color:' + fg + ';">' + _esc(T('app_name')) + '</h2>'
         + (_version ? '<p style="margin:0 0 8px 0;color:' + sub + ';font-size:12px;">v' + _esc(_version) + '</p>' : '')
         + '<p style="margin:0 0 12px 0;color:' + sub + ';font-size:14px;">' + _esc(T('about_description')) + '</p>'
-        + '<a href="https://gitlab.com/DerellLicht/prettymark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/prettymark</a>'
+        + '<a href="https://gitlab.com/DerellLicht/pretty-mark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/pretty-mark</a>'
         + '<br><br><button id="prettymark-about-ok" style="padding:6px 20px;border:1px solid ' + btnBorder + ';border-radius:6px;background:' + btnBg + ';color:' + fg + ';cursor:pointer;font-size:14px;">OK</button>'
         + '</div></div>';
     var closeAbout = function() { o.remove(); document.removeEventListener('keydown', escHandler); };
