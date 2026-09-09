@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.09] - 2026-09-09
+- dummy entry
+
 ## [1.08] - 2026-09-09
 - convert rebuild.cmd to Makefile
 - prepare for first release
