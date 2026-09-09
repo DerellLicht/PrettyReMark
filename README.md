@@ -9,7 +9,7 @@ Summary of added features:
 - moved program colors to `%appdata%\PrettyReMark\colors.json`
 - save/restore size/position of dialog
 - Implement Options dialog and menu link
-- Make program recall current file position in *each* file, across document changes 
+- Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
 
 See [Changelog](CHANGELOG.md) for the full revision history.
