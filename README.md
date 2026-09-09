@@ -13,7 +13,7 @@ Summary of added features:
   as well as program restarts.
 
 See [Changelog](CHANGELOG.md) for the full revision history,  
-and [here](LICENSE.MIT.txt) for MIT license file.
+and click [here](LICENSE.MIT.txt) for MIT license file.
 
 ---
 Notes on this revisited version of `PrettyReMark` ...
