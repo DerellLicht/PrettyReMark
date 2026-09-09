@@ -3,7 +3,9 @@
 ; Non-commercial use only.
 
 #define MyAppName "PrettyReMark"
+#ifndef MyAppVersion
 #define MyAppVersion "1.07"
+#endif
 #define MyAppPublisher "Derell Licht"
 #define MyAppURL "https://derelllicht.42web.io/PrettyReMark.html"
 #define MyAppExeName "PrettyReMark.exe"
