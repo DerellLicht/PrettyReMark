@@ -19,7 +19,7 @@ and [here](LICENSE.MIT.txt) for MIT license file.
 Notes on this revisited version of `PrettyReMark` ...
 I did the design specification, testing, and guidance on the revisions in this fork of the program.
 
-However: https://claude.ai/new did *all* of the coding and interpretation of the existing code.
+However: [Claude AI](https://claude.ai/new) did *all* of the coding and interpretation of the existing code.
 Claude is truly amazing; he implements complex designs in seconds, and they generally 
 do exactly what was requested... but debugging and analysis still require a human.
 The two of us together, can do almost *anything* !!
