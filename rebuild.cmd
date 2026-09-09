@@ -26,12 +26,14 @@
    dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true
    @copy README.md bin\Release\net8.0-windows\win-x64\publish
    @copy CHANGELOG.md bin\Release\net8.0-windows\win-x64\publish
+   @copy LICENSE.MIT.txt bin\Release\net8.0-windows\win-x64\publish
    @echo You still need to zip up the publish folder
    @goto :eof
 
 :docs
    @copy README.md bin\Release\net8.0-windows\win-x64\publish
    @copy CHANGELOG.md bin\Release\net8.0-windows\win-x64\publish
+   @copy LICENSE.MIT.txt bin\Release\net8.0-windows\win-x64\publish
    @echo You still need to zip up the publish folder
    @goto :eof
 
