@@ -38,18 +38,22 @@ PrivilegesRequired=lowest
 OutputBaseFilename={#MyAppName}V{#MyAppVersion}.setup
 SolidCompression=yes
 WizardStyle=modern slate
+; Lets the uninstaller warn about / clean up the file association added below.
+ChangesAssociations=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "associatemd"; Description: "Associate .md files with {#MyAppName}"; GroupDescription: "File associations:"
 
 [Files]
 Source: "{#RepoRoot}\bin\Release\net8.0-windows\win-x64\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\LICENSE.MIT.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\assets\favicon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files.
 
 [Icons]
@@ -65,4 +69,25 @@ Name: "{group}\Readme"; Filename: "{app}\README.md"
 ; it has nothing to do with the installer's own filename, so it must reference
 ; {#MyAppExeName} (the #define'd app exe), not OutputBaseFilename.
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#DoubleAmp(MyAppName)}}"; Flags: nowait postinstall skipifsilent
+
+[Registry]
+; HKA auto-resolves to HKCU\Software\Classes (matches PrivilegesRequired=lowest,
+; a per-user install) or HKLM\Software\Classes for an admin install -- no need to
+; hardcode which. Only touches .md; .txt is left alone since that's yours already.
+Root: HKA; Subkey: "Software\Classes\.md"; ValueType: string; ValueName: ""; ValueData: "PrettyReMark.md"; Flags: uninsdeletevalue; Tasks: associatemd
+Root: HKA; Subkey: "Software\Classes\PrettyReMark.md"; ValueType: string; ValueName: ""; ValueData: "Markdown Document"; Flags: uninsdeletekey; Tasks: associatemd
+Root: HKA; Subkey: "Software\Classes\PrettyReMark.md\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associatemd
+Root: HKA; Subkey: "Software\Classes\PrettyReMark.md\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associatemd
+
+[Code]
+// SHChangeNotify tells Explorer to re-read file associations/icons immediately,
+// instead of leaving the .md icon/association stale until next logon.
+procedure SHChangeNotify(wEventId: Integer; uFlags: Integer; dwItem1: Integer; dwItem2: Integer);
+  external 'SHChangeNotify@shell32.dll stdcall';
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    SHChangeNotify($8000000, $1000, 0, 0); // SHCNE_ASSOCCHANGED, SHCNF_IDLIST
+end;
 
