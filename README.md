@@ -26,7 +26,7 @@ The two of us together, can do almost *anything* !!
 
 ---
 This program is derived from, and expands upon, 
-[PrettyMark](https://gitlab.com/eagle1/prettymark)
+[PrettyMark](https://gitlab.com/eagle1/prettymark),
 created by 
 [Gianluca Zamagni, aka @eagle1](href="https://gitlab.com/eagle1")  
 
