@@ -1,5 +1,9 @@
 # PrettyReMark Changelog
 
+## [1.07] - 2026-09-09
+- Create installer via Inno Setup 7
+- Update documents
+
 ## [1.06] - 2026-09-08
 - renaming program to PrettyReMark, in preperation for distributing it
 

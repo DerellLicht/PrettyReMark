@@ -1,6 +1,7 @@
 @if /I "%~1"=="build" goto :build
 @if /I "%~1"=="single" goto :single
 @if /I "%~1"=="docs" goto :docs
+@if /I "%~1"=="setup" goto :setup
 
 :usage
    @echo USAGE:
@@ -27,13 +28,16 @@
    @copy README.md bin\Release\net8.0-windows\win-x64\publish
    @copy CHANGELOG.md bin\Release\net8.0-windows\win-x64\publish
    @copy LICENSE.MIT.txt bin\Release\net8.0-windows\win-x64\publish
-   @echo You still need to zip up the publish folder
    @goto :eof
 
 :docs
    @copy README.md bin\Release\net8.0-windows\win-x64\publish
    @copy CHANGELOG.md bin\Release\net8.0-windows\win-x64\publish
    @copy LICENSE.MIT.txt bin\Release\net8.0-windows\win-x64\publish
-   @echo You still need to zip up the publish folder
+   @goto :eof
+
+:setup
+	if exist Output rd /s /q Output
+	iscc /Q PrettyReMark.iss
    @goto :eof
 

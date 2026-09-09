@@ -30,5 +30,5 @@ The two of us together, can do almost *anything* !!
 
 ## License
 
-[MIT](LICENSE.txt)
+[MIT](LICENSE.MIT.txt)
 

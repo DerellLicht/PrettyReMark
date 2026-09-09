@@ -3,12 +3,13 @@
 ; Non-commercial use only.
 
 #define MyAppName "PrettyReMark"
-#define MyAppVersion "1.06"
+#define MyAppVersion "1.07"
 #define MyAppPublisher "Derell Licht"
 #define MyAppURL "https://derelllicht.42web.io/PrettyReMark.html"
 #define MyAppExeName "PrettyReMark.exe"
 #define DoubleAmp(Value) StringChange(Value, "&", "&&")
 #define EscapeConstArgument(Value) StringChange(StringChange(StringChange(Value, "%", "%25"), ",", "%2c"), "}", "%7d")
+#define RepoRoot "D:\SourceCode\Git\PrettyReMark"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -31,7 +32,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; Uncomment the following line to use a 64-bit installer.
 ;SetupArchitecture=x64
 DefaultGroupName={#MyAppName}
-LicenseFile=D:\SourceCode\Git\PrettyReMark\bin\Release\net8.0-windows\win-x64\publish\LICENSE.MIT.txt
+LicenseFile={#RepoRoot}\LICENSE.MIT.txt
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 PrivilegesRequired=lowest
 OutputBaseFilename={#MyAppName}V{#MyAppVersion}.setup
@@ -45,16 +46,19 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "D:\SourceCode\Git\PrettyReMark\bin\Release\net8.0-windows\win-x64\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\SourceCode\Git\PrettyReMark\bin\Release\net8.0-windows\win-x64\publish\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\SourceCode\Git\PrettyReMark\bin\Release\net8.0-windows\win-x64\publish\LICENSE.MIT.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\SourceCode\Git\PrettyReMark\bin\Release\net8.0-windows\win-x64\publish\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\bin\Release\net8.0-windows\win-x64\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\LICENSE.MIT.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files.
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\assets\favicon.ico"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\favicon.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\Changelog"; Filename: "{app}\CHANGELOG.md"
+Name: "{group}\License"; Filename: "{app}\LICENSE.MIT.txt"
+Name: "{group}\Readme"; Filename: "{app}\README.md"
 
 [Run]
 ; This runs the INSTALLED app (post-install "Launch program now" checkbox) --
