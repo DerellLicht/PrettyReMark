@@ -12,7 +12,8 @@ Summary of added features:
 - Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
 
-See [Changelog](CHANGELOG.md) for the full revision history.
+See [Changelog](CHANGELOG.md) for the full revision history,  
+and [here](LICENSE.MIT.txt) for MIT license file.
 
 ---
 Notes on this revisited version of `PrettyReMark` ...
@@ -24,11 +25,11 @@ do exactly what was requested... but debugging and analysis still require a huma
 The two of us together, can do almost *anything* !!
 
 ---
-## Existing history and readme from original author:
+This program is derived from, and expands upon, 
+[PrettyMark](https://gitlab.com/eagle1/prettymark)
+created by 
+[Gianluca Zamagni, aka @eagle1](href="https://gitlab.com/eagle1")  
 
-[Original eagle1 readme](https://gitlab.com/eagle1/prettymark/-/blob/main/README.md?ref_type=heads)
-
-## License
-
-[MIT](LICENSE.MIT.txt)
+Existing history and readme for original program are available 
+[here](https://gitlab.com/eagle1/prettymark/-/blob/main/README.md?ref_type=heads)
 

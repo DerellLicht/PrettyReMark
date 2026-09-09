@@ -30,5 +30,6 @@
 :setup
 	if exist Output rd /s /q Output
 	iscc /Q PrettyReMark.iss
+   zip Output\PrettyReMarkV1.07.setup.zip Output\PrettyReMarkV1.07.setup.exe
    @goto :eof
 
