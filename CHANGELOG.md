@@ -1,5 +1,9 @@
 # PrettyReMark Changelog
 
+## [1.08] - 2026-09-09
+- convert rebuild.cmd to Makefile
+- prepare for first release
+
 ## [1.07] - 2026-09-09
 - Create installer via Inno Setup 7
 - Update documents
