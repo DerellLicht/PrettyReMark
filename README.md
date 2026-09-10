@@ -12,8 +12,9 @@ Summary of added features:
 - Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
 
-See [Changelog](CHANGELOG.md) for the full revision history,  
-and click [here](LICENSE.MIT.txt) for MIT license file.
+[Home page](https://derelllicht.42web.io/PrettyReMark.html)  
+See [Changelog](CHANGELOG.md) for the full revision history  
+Click [here](LICENSE.MIT.txt) for MIT license file.
 
 ---
 Notes on this revisited version of `PrettyReMark` ...
