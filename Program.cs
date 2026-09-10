@@ -295,7 +295,43 @@ class MainForm : Form
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr lpdwProcessId);
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
     private const int SW_RESTORE = 9;
+
+    // Plain SetForegroundWindow is routinely ignored by Windows' focus-stealing prevention when
+    // called from a process that isn't itself currently in the foreground -- which is exactly our
+    // situation here, we're a backgrounded instance reacting to a signal. Temporarily attaching
+    // our thread's input queue to the current foreground window's input queue satisfies the OS's
+    // internal "is this thread allowed to set the foreground window" check unconditionally, so
+    // this works regardless of timing or which process launched what. Must run on the UI thread
+    // (GetCurrentThreadId has to be *this* window's thread), so only call it from inside
+    // BeginInvoke as StartOpenRequestListener below does.
+    private void ForceForeground()
+    {
+        if (IsIconic(Handle)) ShowWindow(Handle, SW_RESTORE);
+
+        var foregroundWindow = GetForegroundWindow();
+        uint foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, IntPtr.Zero);
+        uint currentThreadId = GetCurrentThreadId();
+
+        bool attached = foregroundThreadId != currentThreadId
+            && AttachThreadInput(currentThreadId, foregroundThreadId, true);
+        try
+        {
+            SetForegroundWindow(Handle);
+        }
+        finally
+        {
+            if (attached) AttachThreadInput(currentThreadId, foregroundThreadId, false);
+        }
+    }
 
     public void StartOpenRequestListener(string eventName, string requestFile)
     {
@@ -316,8 +352,7 @@ class MainForm : Form
                         BeginInvoke(() =>
                         {
                             OpenTab(path);
-                            if (IsIconic(Handle)) ShowWindow(Handle, SW_RESTORE);
-                            SetForegroundWindow(Handle);
+                            ForceForeground();
                         });
                 }
                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Open request listener error: {ex.Message}"); }
@@ -542,6 +577,15 @@ class MainForm : Form
                     BeginInvoke(() => System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
             }
+            else
+                // Any non-file scheme (mailto:, tel:, http(s):, and anything else that shows up
+                // later) — rather than special-case each one, hand the raw URI to ShellExecute and
+                // let Windows' own protocol-handler resolution do what it already does for
+                // double-clicked links elsewhere. Covers Ctrl+click / middle-click on these links,
+                // which land here instead of the JS click handler (which skips mailto:/tel: itself
+                // and lets native navigation reach this handler).
+                BeginInvoke(() => System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true }));
         };
 
         // Intercept new window requests (triggered by file drag & drop)
@@ -559,6 +603,10 @@ class MainForm : Form
                     BeginInvoke(() => System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
             }
+            else
+                // Same non-file fallback as NavigationStarting above.
+                BeginInvoke(() => System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true }));
         };
 
         // Load content once page is ready

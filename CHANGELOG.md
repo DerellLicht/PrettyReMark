@@ -1,5 +1,10 @@
 # PrettyReMark Changelog
 
+## [1.10] - 2026-09-10
+- deal with `mailto:` links
+- Make a global change to hand *all* unknown extensions to Windows' handlers
+- try to get program to pop to top of window stack when loading a new `.md` file
+
 ## [1.09] - 2026-09-09
 - Add tooltips to sidebar entries 
 - Make width of sidebar resizeable and persistent
