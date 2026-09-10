@@ -11,3 +11,4 @@ Output/
 first.release.txt
 todo.list.txt
 roslynator-report.txt
+AppVersion.cs

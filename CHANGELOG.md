@@ -1,7 +1,9 @@
 # PrettyReMark Changelog
 
 ## [1.09] - 2026-09-09
-- dummy entry
+- Add tooltips to sidebar entries 
+- Make width of sidebar resizeable and persistent
+- Modify the build rule to manually regenerate AppVersion.cs from VERSION in CHANGELOG.md
 
 ## [1.08] - 2026-09-09
 - convert rebuild.cmd to Makefile

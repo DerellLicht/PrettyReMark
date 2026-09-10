@@ -17,13 +17,27 @@ body.dark { background-color: #0d1117; }
 
 /* Drawer */
 #drawer {
-    width: 240px; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden;
+    width: var(--drawer-width, 240px); min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden;
     border-right: 1px solid #d1d9e0; background: #f6f8fa;
     transition: width 0.2s ease, opacity 0.2s ease;
     flex-shrink: 0;
 }
+/* Dragging sets this to suppress the transition above -- otherwise every mousemove's width
+   change gets animated instead of applied instantly, and the drawer visibly lags the cursor. */
+#drawer.no-transition { transition: none; }
 #drawer.collapsed { width: 0; border-right: none; opacity: 0; pointer-events: none; }
 body.dark #drawer { background: #161b22; border-right-color: #30363d; }
+
+/* Drag handle between drawer and main content. A real flex sibling (not an absolutely
+   positioned overlay on #drawer) so it never has to fight the drawer's own width/overflow
+   rules, and disappears automatically -- via the adjacent-sibling selector below -- whenever
+   #drawer is collapsed, with no extra JS to keep the two in sync. */
+#drawer-resizer {
+    width: 4px; flex-shrink: 0; cursor: col-resize; background: transparent;
+}
+#drawer-resizer:hover, #drawer-resizer.dragging { background: #0969da; }
+body.dark #drawer-resizer:hover, body.dark #drawer-resizer.dragging { background: #4493f8; }
+#drawer.collapsed + #drawer-resizer { display: none; }
 
 #drawer-header {
     padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -41,8 +55,8 @@ body.dark #drawer-header button { color: #8b949e; }
 #drawer-list { padding: 4px 0; }
 
 .drawer-item {
-    padding: 6px 12px; cursor: pointer; display: flex; align-items: center;
-    justify-content: space-between; gap: 6px; border-left: 3px solid transparent;
+    padding: 6px 8px 6px 12px; cursor: pointer; display: flex; align-items: center;
+    border-left: 3px solid transparent; position: relative;
 }
 .drawer-item:hover { background: #e8ebef; }
 body.dark .drawer-item:hover { background: #1c2129; }
@@ -62,7 +76,8 @@ body.dark .drawer-filename { color: #f0f6fc; }
 body.dark .drawer-path { color: #8b949e; }
 
 .drawer-close {
-    flex-shrink: 0; width: 18px; height: 18px; line-height: 18px; text-align: center;
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; line-height: 18px; text-align: center;
     font-size: 14px; color: #656d76; border-radius: 3px; cursor: pointer;
     opacity: 0; transition: opacity 0.1s;
 }
@@ -201,6 +216,7 @@ body.dark mark.find-match.current { background: #b35c44; }
         </div>
         <div id="drawer-list"></div>
     </div>
+    <div id="drawer-resizer" title="Drag to resize"></div>
     <div id="main">
         <div id="tab-bar">
             <button id="drawer-toggle" onclick="toggleDrawer()" title="Toggle sidebar">&#9776;</button>
@@ -487,6 +503,51 @@ function toggleDrawer() {
     window.chrome.webview.postMessage({ type: 'drawer_toggled', open: _drawerOpen });
 }
 
+// --- Drawer resizing ---
+var DRAWER_MIN_WIDTH = 160;
+var DRAWER_MAX_WIDTH = 500;
+
+// Called once at startup from Program.cs (OnNavigationCompleted) with the saved width, mirroring
+// setDrawerOpen() above. Also called live while dragging, below.
+function setDrawerWidth(px) {
+    px = Math.min(DRAWER_MAX_WIDTH, Math.max(DRAWER_MIN_WIDTH, px));
+    document.documentElement.style.setProperty('--drawer-width', px + 'px');
+    return px;
+}
+
+(function() {
+    var resizer = document.getElementById('drawer-resizer');
+    var drawer = document.getElementById('drawer');
+    var dragging = false;
+    var lastWidth = 0;
+
+    resizer.addEventListener('mousedown', function(e) {
+        dragging = true;
+        lastWidth = drawer.getBoundingClientRect().width;
+        resizer.classList.add('dragging');
+        drawer.classList.add('no-transition');
+        e.preventDefault();   // avoid text selection elsewhere in the window while dragging
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        // The resizer sits right at the drawer's right edge, so the cursor's x position IS the
+        // target drawer width (drawer starts at x=0).
+        lastWidth = setDrawerWidth(e.clientX);
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        dragging = false;
+        resizer.classList.remove('dragging');
+        drawer.classList.remove('no-transition');
+        // Persisted once, on release, rather than on every mousemove -- same reasoning as the
+        // debounced scroll-position save elsewhere in this file, just via a discrete event
+        // instead of a timer.
+        window.chrome.webview.postMessage({ type: 'drawer_width', width: Math.round(lastWidth) });
+    });
+})();
+
 // --- Tabs ---
 var _tabDirs = {};       // tab id -> the folder its file lives in, so relative links can be resolved against it
 var _activeTabDir = null;
@@ -530,10 +591,14 @@ function addTab(info, activate) {
     var item = document.createElement('div');
     item.className = 'drawer-item';
     item.dataset.id = info.id;
+    // _esc()'d values go straight into a title="..." attribute below, unescaped for that
+    // context -- safe only because it's not general-purpose text: info.name/info.path are
+    // real Windows file/folder names, and Windows disallows a literal '"' in those, so there's
+    // nothing here that could break out of the attribute.
     item.innerHTML =
         '<div class="drawer-info">' +
-            '<span class="drawer-filename">' + _esc(info.name) + '</span>' +
-            '<span class="drawer-path">' + _esc(info.path || '') + '</span>' +
+            '<span class="drawer-filename" title="' + _esc(info.name) + '">' + _esc(info.name) + '</span>' +
+            '<span class="drawer-path" title="' + _esc(info.path || '') + '">' + _esc(info.path || '') + '</span>' +
         '</div>' +
         '<span class="drawer-close">&times;</span>';
     item.querySelector('.drawer-info').addEventListener('click', function() {

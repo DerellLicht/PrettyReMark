@@ -32,6 +32,11 @@ class AppSettings
     public int? WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
 
+    // Sidebar ("Open Files" drawer) width, remembered across runs the same way as the window
+    // size above. Null = never saved (first run, or a pre-resize settings.json) -- falls back
+    // to index.html's own CSS default (240px) rather than a value duplicated here.
+    public int? DrawerWidth { get; set; }
+
     // Last scroll position within each file, keyed by full file path, so reopening a document
     // -- across tab switches within a session AND across closing/reopening PrettyReMark entirely
     // -- returns you to where you left off rather than the top. OrdinalIgnoreCase because
@@ -584,6 +589,8 @@ class MainForm : Form
 
         // Apply drawer state
         ExecuteJs($"setDrawerOpen({(settings.DrawerOpen ? "true" : "false")})");
+        if (settings.DrawerWidth.HasValue)
+            ExecuteJs($"setDrawerWidth({settings.DrawerWidth.Value})");
 
         await RestoreSession();
         if (_initialFilePath != null)
@@ -679,6 +686,13 @@ class MainForm : Form
                 var open = doc.RootElement.GetProperty("open").GetBoolean();
                 settings.DrawerOpen = open;
                 drawerItem.Checked = open;
+                settings.Save();
+            }
+            else if (type == "drawer_width")
+            {
+                // Sent once on mouseup at the end of a drag (see index.html), not per mousemove.
+                var width = doc.RootElement.GetProperty("width").GetInt32();
+                settings.DrawerWidth = width;
                 settings.Save();
             }
         }
