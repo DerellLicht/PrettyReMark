@@ -1,0 +1,7 @@
+[*.cs]
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1822.severity = none
+# Suppressed: prefer explicit block bodies over expression-bodied lambdas/members,
+# consistent with always using braces on single-statement blocks — avoids the class
+# of bug where a later added statement silently falls outside the intended scope.
+dotnet_diagnostic.RCS1021.severity = none

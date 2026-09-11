@@ -12,3 +12,5 @@ first.release.txt
 todo.list.txt
 roslynator-report.txt
 AppVersion.cs
+roslyn.report.txt
+roslynator-report.xml

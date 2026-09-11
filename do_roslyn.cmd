@@ -1,1 +1,0 @@
-roslynator analyze D:\SourceCode\Git\PrettyReMark\PrettyReMark.csproj --output roslynator-report.txt --verbosity normal

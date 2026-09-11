@@ -1,7 +1,7 @@
 # PrettyReMark Changelog
 
 ## [1.11] - 2026-09-10
-- placeholder
+- running `roslynator` on `Program.cs` and resolving warnings
 
 ## [1.10] - 2026-09-10
 - deal with `mailto:` links

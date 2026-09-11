@@ -253,7 +253,7 @@ static class Program
     }
 }
 
-class MainForm : Form
+partial class MainForm : Form
 {
     private WebView2 webView;
     private System.Timers.Timer debounceTimer;
@@ -289,20 +289,29 @@ class MainForm : Form
     // Single-instance listener
     private CancellationTokenSource _listenerCts;
 
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-    [DllImport("user32.dll")]
-    private static extern bool IsIconic(IntPtr hWnd);
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr lpdwProcessId);
-    [DllImport("user32.dll")]
-    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
+    // Converted from [DllImport]/extern to [LibraryImport]/partial (SYSLIB1054): marshalling code
+    // is now generated at compile time instead of built by the runtime on first call. LibraryImport
+    // won't guess how to marshal `bool`, unlike DllImport (which defaults to the 4-byte Win32 BOOL),
+    // so each bool parameter/return is marked explicitly with UnmanagedType.Bool to preserve that
+    // same Win32 BOOL behavior.
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconic(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr lpdwProcessId);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
+    [LibraryImport("kernel32.dll")]
+    private static partial uint GetCurrentThreadId();
     private const int SW_RESTORE = 9;
 
     // Plain SetForegroundWindow is routinely ignored by Windows' focus-stealing prevention when
@@ -348,12 +357,12 @@ class MainForm : Form
                     if (!File.Exists(requestFile)) continue;
                     var path = File.ReadAllText(requestFile).Trim();
                     try { File.Delete(requestFile); } catch { }
-                    if (!string.IsNullOrEmpty(path))
-                        BeginInvoke(() =>
-                        {
+                    if (!string.IsNullOrEmpty(path)) {
+                        BeginInvoke(() => {
                             OpenTab(path);
                             ForceForeground();
                         });
+                    }
                 }
                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Open request listener error: {ex.Message}"); }
             }
@@ -565,19 +574,20 @@ class MainForm : Form
             e.Cancel = true;
             System.Diagnostics.Debug.WriteLine($"Navigation blocked: {e.Uri}");
 
-            if (e.Uri.StartsWith("file:///"))
-            {
+            if (e.Uri.StartsWith("file:///")) {
                 var path = new Uri(e.Uri).LocalPath;
                 var ext = Path.GetExtension(path).ToLowerInvariant();
-                if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
+                if (new[] { ".md", ".markdown", ".txt" }.Contains(ext)) {
                     BeginInvoke(() => OpenTab(path));
-                else
+                }
+                else {
                     // Not a type PrettyReMark renders itself (e.g. .html) — hand off to the OS default app.
                     // Covers Ctrl+click / middle-click, which land here instead of the JS click handler.
                     BeginInvoke(() => System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
+                }
             }
-            else
+            else {
                 // Any non-file scheme (mailto:, tel:, http(s):, and anything else that shows up
                 // later) — rather than special-case each one, hand the raw URI to ShellExecute and
                 // let Windows' own protocol-handler resolution do what it already does for
@@ -586,6 +596,7 @@ class MainForm : Form
                 // and lets native navigation reach this handler).
                 BeginInvoke(() => System.Diagnostics.Process.Start(
                     new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true }));
+            }
         };
 
         // Intercept new window requests (triggered by file drag & drop)
@@ -596,17 +607,20 @@ class MainForm : Form
             {
                 var path = new Uri(e.Uri).LocalPath;
                 var ext = Path.GetExtension(path).ToLowerInvariant();
-                if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
+                if (new[] { ".md", ".markdown", ".txt" }.Contains(ext)) {
                     BeginInvoke(() => OpenTab(path));
-                else
+                }
+                else {
                     // Same fallback as NavigationStarting above, for links opened via window.open()/target="_blank".
                     BeginInvoke(() => System.Diagnostics.Process.Start(
                         new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }));
+                }
             }
-            else
+            else {
                 // Same non-file fallback as NavigationStarting above.
                 BeginInvoke(() => System.Diagnostics.Process.Start(
                     new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true }));
+            }
         };
 
         // Load content once page is ready
@@ -679,11 +693,13 @@ class MainForm : Form
                 {
                     var path = fileUri.LocalPath;
                     var ext = Path.GetExtension(path).ToLowerInvariant();
-                    if (new[] { ".md", ".markdown", ".txt" }.Contains(ext))
+                    if (new[] { ".md", ".markdown", ".txt" }.Contains(ext)) {
                         OpenTab(path);
-                    else
+                    }
+                    else {
                         System.Diagnostics.Process.Start(
                             new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+                    }
                 }
             }
             else if (type == "switch_tab")
@@ -725,9 +741,11 @@ class MainForm : Form
             }
             else if (type == "click")
             {
-                foreach (ToolStripItem item in MainMenuStrip.Items)
-                    if (item is ToolStripMenuItem mi && mi.DropDown.Visible)
+                foreach (ToolStripItem item in MainMenuStrip.Items) {
+                    if (item is ToolStripMenuItem mi && mi.DropDown.Visible) {
                         mi.HideDropDown();
+                    }
+                }
             }
             else if (type == "drawer_toggled")
             {
@@ -843,7 +861,10 @@ class MainForm : Form
             if (tabs.Count > 0)
             {
                 // Activate the last tab
-                var next = tabs.Last();
+#pragma warning disable RCS1246 // .Last() kept intentionally -- see comment below
+                var next = tabs.Last();	//  equivalent to:
+                // var next = tabs[tabs.Count - 1];
+#pragma warning restore RCS1246                
                 activeTabId = next.Id;
                 await webView.ExecuteScriptAsync($"activateTab({JsonSerializer.Serialize(next.Id)})");
                 await RenderTab(next);
@@ -1001,7 +1022,9 @@ class MainForm : Form
 
     private void SaveSession()
     {
-        settings.SessionFiles = tabs.Select(t => t.FilePath).ToList();
+        // ConvertAll (not Select().ToList()) since `tabs` is a List<T>: avoids the lazy-iterator +
+        // dynamic-resize overhead of Select/ToList by allocating the destination array up front.
+        settings.SessionFiles = tabs.ConvertAll(t => t.FilePath);
         var activeTab = tabs.FirstOrDefault(t => t.Id == activeTabId);
         settings.SessionActiveFile = activeTab?.FilePath ?? "";
         settings.Save();
@@ -1165,7 +1188,7 @@ class MainForm : Form
         if (!Directory.Exists(langDir)) return new List<string> { "en" };
         return Directory.GetFiles(langDir, "*.json")
             .Select(f => Path.GetFileNameWithoutExtension(f))
-            .OrderBy(l => l)
+            .Order() // net8.0: shorthand for OrderBy(x => x)
             .ToList();
     }
 
@@ -1269,7 +1292,8 @@ class OptionsDialog : Form
         sidebarFilenameSwatches, sidebarPathSwatches, sidebarActiveBgSwatches,
         sidebarActiveBarSwatches, sidebarHoverBgSwatches;
 
-    private CheckBox darkModeCheck, sidebarCheck;
+    private readonly CheckBox darkModeCheck;
+    private readonly CheckBox sidebarCheck;
 
     // The edited colors and non-color options, populated only if the user clicks OK (see OnOk
     // below) -- callers should only read these after checking ShowDialog() == DialogResult.OK.
@@ -1497,8 +1521,10 @@ class OptionsDialog : Form
             var colWidths = layout.GetColumnWidths();
             var rowHeights = layout.GetRowHeights();
 
-            int gutter1CenterX = colWidths[0] + colWidths[1] / 2;
-            int gutter2CenterX = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4] / 2;
+				int gutter1CenterX = colWidths[0] + (colWidths[1] / 2);
+				gutter1CenterX -= 3;
+				int gutter2CenterX = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + (colWidths[4] / 2);
+				gutter2CenterX -= 3;
             int gridBottomY = rowHeights.Take(colorGridRows).Sum();
 
             using var pen = new System.Drawing.Pen(DividerColor, 2);

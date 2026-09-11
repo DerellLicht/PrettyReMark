@@ -72,3 +72,11 @@ update: dist
 clean:
 	rm -rf bin obj Output
 
+
+# Roslynator is a set of code analysis tools for C#, powered by Roslyn.
+# https://github.com/dotnet/roslynator
+# 
+# Analyzers are not included in Roslynator IDE extensions. 
+# Use Roslynator NuGet packages (e.g. Roslynator.Analyzers) for diagnostics.
+roslyn:
+	roslynator analyze D:\SourceCode\Git\PrettyReMark\PrettyReMark.csproj --output roslynator-report.xml --verbosity normal
