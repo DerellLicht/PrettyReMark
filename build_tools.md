@@ -2,7 +2,7 @@
 
 ### Cygwin toolchain
 `https://cygwin.com/`  
-tools provided: `make`, `sed`, `tr`, 'head', `tail`, `rm`, other *nix utilities
+tools provided: `make`, `sed`, `tr`, `head`, `tail`, `rm`, other *nix utilities
 
 ### Git for Windows - command-line utility
 `https://gitforwindows.org/`  
