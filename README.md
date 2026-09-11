@@ -15,7 +15,7 @@ Summary of added features:
 Here is its [Home page](https://derelllicht.42web.io/PrettyReMark.html)  
 Download the [installer](https://gitlab.com/DerellLicht/pretty-mark/-/releases/v1.08/downloads/PrettyReMarkV1.08.setup.zip) here  
 See [Changelog](CHANGELOG.md) for the full revision history  
-Click [here](LICENSE.MIT.txt) for MIT license file.
+`PrettyReMark` uses the [MIT](LICENSE.MIT.txt) license; view the file here.
 
 ---
 Notes on this revisited version of `PrettyReMark` ...  
