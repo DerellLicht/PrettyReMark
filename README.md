@@ -27,6 +27,11 @@ do exactly what was requested... but debugging and analysis still require a huma
 The two of us together, can do almost *anything* !!
 
 ---
+***Notes on build tools used to build/maintain this program***
+A variety of tools are called upon to build and maintain `PrettyReMark` ;
+They are documented in [build tools](build_tools.md) file.  
+
+---
 This program is derived from, and expands upon, 
 [PrettyMark](https://gitlab.com/eagle1/prettymark),
 created by 
