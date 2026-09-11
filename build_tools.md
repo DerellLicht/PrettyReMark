@@ -26,3 +26,23 @@ copy it to somewhere in your path.
 `https://jrsoftware.org/isinfo.php`  
 tools provided: `icss`  
 
+### roslynator - C# code validation
+This is an addon package for `dotnet` toolchain.  
+install: `dotnet tool install -g roslynator.dotnet.cli`
+one-time setup:
+
+One-time setup: add the analyzer package to PrettyMark's .csproj as a 
+dev-only reference (it won't ship in your published output):
+```css
+<ItemGroup>
+  <PackageReference Include="Roslynator.Analyzers" Version="4.*">
+    <PrivateAssets>all</PrivateAssets>
+    <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+  </PackageReference>
+</ItemGroup>
+```
+(This also means dotnet build itself will now show Roslynator warnings inline, 
+for free, not just when you run the CLI.)
+
+running the test:
+just run `make roslyn` in the `PrettyReMark` folder.
