@@ -18,7 +18,7 @@ See [Changelog](CHANGELOG.md) for the full revision history
 Click [here](LICENSE.MIT.txt) for MIT license file.
 
 ---
-Notes on this revisited version of `PrettyReMark` ...
+Notes on this revisited version of `PrettyReMark` ...  
 I did the design specification, testing, and guidance on the revisions in this fork of the program.
 
 However: [Claude AI](https://claude.ai/new) did *all* of the coding and interpretation of the existing code.
