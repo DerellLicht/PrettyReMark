@@ -80,3 +80,6 @@ clean:
 # Use Roslynator NuGet packages (e.g. Roslynator.Analyzers) for diagnostics.
 roslyn:
 	roslynator analyze D:\SourceCode\Git\PrettyReMark\PrettyReMark.csproj --output roslynator-report.xml --verbosity normal
+
+lint:
+	cmd /C "C:\WINDOWS\system32\WindowsPowerShell\v1.0\PowerShell.exe -ExecutionPolicy Bypass -File ..\tools\lint-all.ps1 -VnuJar D:\SourceCode\Git\tools\vnu.jar"

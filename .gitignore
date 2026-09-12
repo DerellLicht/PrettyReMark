@@ -14,3 +14,6 @@ roslynator-report.txt
 AppVersion.cs
 roslyn.report.txt
 roslynator-report.xml
+reports/
+Single_command_code_validation.md
+lint.out.txt
