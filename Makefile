@@ -73,13 +73,80 @@ clean:
 	rm -rf bin obj Output
 
 
-# Roslynator is a set of code analysis tools for C#, powered by Roslyn.
-# https://github.com/dotnet/roslynator
-# 
-# Analyzers are not included in Roslynator IDE extensions. 
-# Use Roslynator NuGet packages (e.g. Roslynator.Analyzers) for diagnostics.
-roslyn:
-	roslynator analyze D:\SourceCode\Git\PrettyReMark\PrettyReMark.csproj --output roslynator-report.xml --verbosity normal
+# --- Static analysis / linting ------------------------------------------
+# Four tools cover the whole codebase: Roslynator (C#), vnu.jar (the Nu Html
+# Checker, for the WebView2 HTML), stylelint (CSS), and eslint (JS, pulled
+# out of index.html via eslint-plugin-html). Each gets its own target so any
+# one can be run standalone; "lint" runs all four and leaves each tool's raw
+# output under reports\.
+#
+# These tools exit nonzero when they find issues, which is the normal/
+# expected case, not a make failure. lint-cs is prefixed with "-" to keep
+# going regardless (roslynator's own report makes the outcome clear either
+# way). lint-html/css/js instead capture the exit status themselves, append
+# an explicit "no issues found" / "issues found" line to their report, AND
+# echo that same line to the console -- those three tools are silent on a
+# clean run, and silent isn't just ambiguous, it also hides a genuine setup
+# failure (missing config, missing plugin) behind what looks like a clean
+# pass. This replaces the old lint-all.ps1, which existed only to work
+# around make aborting on a nonzero exit.
+#
+# One-time setup (per machine, not per build):
+#   - roslynator: dotnet tool install -g roslynator.dotnet.cli
+#   - vnu.jar: download and point VNU_JAR below at it (shared tools\ folder,
+#     not per-project -- see build_tools.md)
+#   - node + npm install -g eslint eslint-plugin-html stylelint stylelint-config-standard
+#   - .stylelintrc.json in this repo's root, extending stylelint-config-standard
+#     (stylelint exits 78 immediately with no config file present)
+#   - eslint.config.js in this repo's root registering eslint-plugin-html
+#     for *.html -- under ESLint 9/10 flat config, a bare "--plugin html"
+#     CLI flag does nothing (that only worked pre-flat-config); the plugin
+#     has to be imported and registered in eslint.config.js itself. Both
+#     files are provided alongside this Makefile -- drop them in the repo
+#     root as-is.
 
-lint:
-	cmd /C "C:\WINDOWS\system32\WindowsPowerShell\v1.0\PowerShell.exe -ExecutionPolicy Bypass -File ..\tools\lint-all.ps1 -VnuJar D:\SourceCode\Git\tools\vnu.jar"
+VNU_JAR = ../tools/vnu.jar
+
+.PHONY: lint lint-cs lint-html lint-css lint-js roslyn
+
+lint: lint-cs lint-html lint-css lint-js
+	@echo Lint reports written to reports\
+
+reports:
+	mkdir -p reports
+
+lint-cs: | reports
+	-roslynator analyze PrettyReMark.csproj --output reports/csharp.xml --verbosity normal
+
+lint-html: | reports
+	@java -jar $(VNU_JAR) assets/index.html > reports/html.txt 2>&1; \
+	status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		msg="vnu.jar: no issues found"; \
+	else \
+		msg="vnu.jar: issues found (exit $$status) -- see reports/html.txt"; \
+	fi; \
+	echo "$$msg" >> reports/html.txt; \
+	echo "$$msg"
+
+lint-css: | reports
+	@stylelint --no-color assets/*.css > reports/css.txt 2>&1; \
+	status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		msg="stylelint: no issues found"; \
+	else \
+		msg="stylelint: issues found (exit $$status) -- see reports/css.txt"; \
+	fi; \
+	echo "$$msg" >> reports/css.txt; \
+	echo "$$msg"
+
+lint-js: | reports
+	@eslint --no-color assets/index.html > reports/js.txt 2>&1; \
+	status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		msg="eslint: no issues found"; \
+	else \
+		msg="eslint: issues found (exit $$status) -- see reports/js.txt"; \
+	fi; \
+	echo "$$msg" >> reports/js.txt; \
+	echo "$$msg"
