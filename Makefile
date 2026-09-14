@@ -81,8 +81,11 @@ release: check-clean dist
 # tag was created, use "re-release" below instead -- this target will happily
 # upload a binary that no longer matches what git says $(TAG) is.
 # NOTE: unlike "gh release upload", "glab release upload" has no --clobber
-# flag -- untested whether it silently overwrites a same-named asset or
-# errors out. Verify this before relying on it for a real re-upload.
+# flag -- CONFIRMED (2026-09) it does NOT overwrite a same-named asset, it
+# errors: "Name has already been taken, Filepath has already been taken."
+# glab also has no per-asset delete (only "glab release delete <tag>", which
+# removes the whole release). Fix: on GitLab, edit the release and remove
+# the stale asset link by hand, then re-run this target.
 update: dist
 	@echo Updating assets for existing release $(TAG)...
 	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
