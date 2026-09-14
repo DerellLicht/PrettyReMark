@@ -23,6 +23,14 @@ class AppSettings
     // Off by default -- most people navigate via the sidebar and never look at the tab bar.
     // See the Options dialog's "Show Tab Bar" checkbox.
     public bool ShowTabBar { get; set; } = false;
+
+    // Undocumented: there's no UI for this -- it's meant to be hand-set to true in settings.json
+    // while PrettyReMark is closed. When true, the Options dialog gains a "Reload Colors.json"
+    // button next to "Show Tab Bar" that re-reads colors.json from disk into the dialog's swatch
+    // grid, useful for previewing hand-edited or externally generated color files (e.g. from a
+    // theme-import script) without restarting the app. Defaults to false/hidden since it's a
+    // power-user testing aid, not something most users need to see.
+    public bool EnableColorReloadButton { get; set; } = false;
     public string Language { get; set; } = "";
     public List<string> RecentFiles { get; set; } = new();
     public List<string> SessionFiles { get; set; } = new();
@@ -1155,7 +1163,8 @@ partial class MainForm : Form
     // restarting.
     private void OpenOptionsDialog()
     {
-        using var dlg = new OptionsDialog(colorConfig, settings.DarkMode, settings.DrawerOpen, settings.ShowTabBar, _strings);
+        using var dlg = new OptionsDialog(colorConfig, settings.DarkMode, settings.DrawerOpen, settings.ShowTabBar,
+            settings.EnableColorReloadButton, _strings);
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
             colorConfig = dlg.ColorResult;
@@ -1334,7 +1343,7 @@ class OptionsDialog : Form
     public bool ShowTabBarResult { get; private set; }
 
     public OptionsDialog(ColorConfig current, bool darkMode, bool sidebarVisible, bool showTabBar,
-        Dictionary<string, string> strings)
+        bool enableColorReloadButton, Dictionary<string, string> strings)
     {
         this.strings = strings;
 
@@ -1438,6 +1447,22 @@ class OptionsDialog : Form
             Checked = showTabBar, Anchor = AnchorStyles.Left, Margin = new Padding(0, 4, 0, 4)
         };
         layout.Controls.Add(tabBarCheck, 0, tabBarRow);
+
+        // Undocumented power-user aid (see AppSettings.EnableColorReloadButton) -- only added to
+        // the layout at all when the setting is on, so the space next to "Show Tab Bar" stays
+        // empty for everyone else, same as it was before this feature existed. Sized/positioned
+        // like resetBtn above: fills cols 2-6, the same row as its paired checkbox.
+        if (enableColorReloadButton)
+        {
+            var reloadBtn = new Button
+            {
+                Text = T("options_reload_colors", "Reload Colors.json"), Dock = DockStyle.Fill,
+                Margin = new Padding(0, 4, 0, 4)
+            };
+            reloadBtn.Click += (s, e) => ReloadColorsFromDisk();
+            layout.Controls.Add(reloadBtn, 2, tabBarRow);
+            layout.SetColumnSpan(reloadBtn, 5); // cols 2..6, same span as resetBtn
+        }
 
         int sidebarRow = layout.RowCount;
         layout.RowCount = sidebarRow + 1;
@@ -1626,6 +1651,25 @@ class OptionsDialog : Form
         SetSwatchPair(sidebarActiveBgSwatches, defaults.Light.SidebarActiveBackgroundColor, defaults.Dark.SidebarActiveBackgroundColor);
         SetSwatchPair(sidebarActiveBarSwatches, defaults.Light.SidebarActiveBarColor, defaults.Dark.SidebarActiveBarColor);
         SetSwatchPair(sidebarHoverBgSwatches, defaults.Light.SidebarHoverBackgroundColor, defaults.Dark.SidebarHoverBackgroundColor);
+    }
+
+    // Undocumented power-user aid -- see AppSettings.EnableColorReloadButton. Re-reads colors.json
+    // from disk (e.g. after hand-editing it, or overwriting it with an externally generated file)
+    // and pushes it into every swatch, live in the dialog -- same "nothing written until OK"
+    // contract as ResetColorsToDefaults above, just sourced from disk instead of hardcoded
+    // defaults. ColorConfig.Load() already handles a missing/partial file by falling back to
+    // defaults and backfilling nulls, so no extra error handling is needed here.
+    private void ReloadColorsFromDisk()
+    {
+        var loaded = ColorConfig.Load();
+        SetSwatchPair(textSwatches, loaded.Light.TextColor, loaded.Dark.TextColor);
+        SetSwatchPair(bgSwatches, loaded.Light.BackgroundColor, loaded.Dark.BackgroundColor);
+        SetSwatchPair(sidebarBgSwatches, loaded.Light.SidebarBackgroundColor, loaded.Dark.SidebarBackgroundColor);
+        SetSwatchPair(sidebarFilenameSwatches, loaded.Light.SidebarFilenameColor, loaded.Dark.SidebarFilenameColor);
+        SetSwatchPair(sidebarPathSwatches, loaded.Light.SidebarPathColor, loaded.Dark.SidebarPathColor);
+        SetSwatchPair(sidebarActiveBgSwatches, loaded.Light.SidebarActiveBackgroundColor, loaded.Dark.SidebarActiveBackgroundColor);
+        SetSwatchPair(sidebarActiveBarSwatches, loaded.Light.SidebarActiveBarColor, loaded.Dark.SidebarActiveBarColor);
+        SetSwatchPair(sidebarHoverBgSwatches, loaded.Light.SidebarHoverBackgroundColor, loaded.Dark.SidebarHoverBackgroundColor);
     }
 
     private static void SetSwatchPair((Panel light, Panel dark) swatches, string lightHex, string darkHex)

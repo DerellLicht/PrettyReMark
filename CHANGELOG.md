@@ -1,7 +1,7 @@
 # PrettyReMark Changelog
 
 ## [1.12] - 2026-09-14
-- placeholder for development version
+- Adding debug options
 
 ## [1.11] - 2026-09-14
 - running `roslynator` on `Program.cs` and resolving warnings
