@@ -96,6 +96,7 @@ body.dark .drawer-close:hover { background: #30363d; color: #f0f6fc; }
     overflow-x: auto; overflow-y: hidden; flex-shrink: 0;
 }
 #tab-bar:empty { display: none; }
+#tab-bar.tabbar-hidden { display: none; }
 body.dark #tab-bar { background: #161b22; border-bottom-color: #30363d; }
 
 /* Toggle button in tab bar */
@@ -496,6 +497,13 @@ function setZoomFromSlider(val) {
 function setDrawerOpen(open) {
     _drawerOpen = open;
     document.getElementById('drawer').classList.toggle('collapsed', !open);
+}
+
+// Called once at startup from Program.cs (OnNavigationCompleted) and whenever the Options
+// dialog's "Show Tab Bar" checkbox changes -- default off, see AppSettings.ShowTabBar. Unlike
+// the drawer, there's no user-facing toggle/shortcut for this beyond the checkbox itself.
+function setTabBarVisible(visible) {
+    document.getElementById('tab-bar').classList.toggle('tabbar-hidden', !visible);
 }
 
 function toggleDrawer() {

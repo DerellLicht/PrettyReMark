@@ -22,7 +22,7 @@ TAG        = v$(VERSION)
 # repo is a fork of eagle1's original and glab otherwise asks each time.
 GLAB_REPO = DerellLicht/pretty-mark
 
-.PHONY: single setup dist release update clean
+.PHONY: single setup dist release update retag re-release check-clean clean
 
 # rebuild.cmd's "single" target -- stand-alone self-extracting exe.
 # (The old "build" target -- loose-file publish -- is gone: PrettyReMark.iss
@@ -49,9 +49,23 @@ setup: single
 dist: setup
 	zip -j $(SETUP_ZIP) $(SETUP_EXE)
 
+# Refuses to proceed if the working tree has uncommitted or untracked changes
+# -- the exact mistake that prompted this target: a release built from a
+# working tree that doesn't match what "git tag" is about to point at.
+# A prerequisite of "release" and "retag" (not "dist"/"setup"/"single" --
+# those are also used standalone for local testing, where an uncommitted
+# tree is completely normal) so it runs, and can fail, BEFORE the expensive
+# rebuild -- "release: check-clean dist" checks first, builds second.
+check-clean:
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "ERROR: uncommitted changes present -- commit before releasing."; \
+		git status --short; \
+		exit 1; \
+	fi
+
 # Tag, push, and publish a new GitLab release with the installer attached and
 # release notes sliced out of the current CHANGELOG.md entry.
-release: dist
+release: check-clean dist
 	@echo Preparing GitLab release $(TAG)...
 	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
 	git tag $(TAG)
@@ -61,13 +75,39 @@ release: dist
 	@echo Release $(TAG) uploaded to GitLab!
 
 # Re-upload the installer to an existing release (e.g. after a rebuild), without
-# re-tagging. NOTE: unlike "gh release upload", "glab release upload" has no
-# --clobber flag -- untested whether it silently overwrites a same-named asset
-# or errors out. Verify this before relying on it for a real re-upload.
+# re-tagging. Only correct when $(TAG) already points at the commit you actually
+# want released -- e.g. a flaky build, or you deleted Output\ and need to
+# regenerate/reattach the same artifact. If the source has changed since the
+# tag was created, use "re-release" below instead -- this target will happily
+# upload a binary that no longer matches what git says $(TAG) is.
+# NOTE: unlike "gh release upload", "glab release upload" has no --clobber
+# flag -- untested whether it silently overwrites a same-named asset or
+# errors out. Verify this before relying on it for a real re-upload.
 update: dist
 	@echo Updating assets for existing release $(TAG)...
 	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
 	@echo Release $(TAG) assets updated on GitLab!
+
+# Recovery for "I ran release, then realized uncommitted changes were left
+# out" -- force-moves $(TAG) to the current commit and force-pushes that
+# move, then rebuilds and re-uploads via "update" so the release's binary
+# matches where the tag now points. Safe for a solo repo (nobody else has
+# based work on the old tag position); on a shared repo, force-pushing a
+# moved tag out from under a collaborator who already fetched it is the
+# kind of thing worth a heads-up first.
+#
+# Deliberately separate from "release" itself, which still uses a bare
+# "git tag" (no -f) as a guard rail -- re-running "release" on an
+# already-tagged version should fail loudly, not silently move the tag.
+# Reach for "retag"/"re-release" only when you actually mean to. Also
+# depends on check-clean, for the same reason "release" does -- retagging
+# onto a dirty tree just relocates the exact mistake this is meant to fix.
+retag: check-clean
+	git tag -f $(TAG)
+	git push origin $(TAG) --force
+
+re-release: retag update
+	@echo Release $(TAG) retagged and re-released.
 
 clean:
 	rm -rf bin obj Output

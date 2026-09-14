@@ -1,7 +1,11 @@
 # PrettyReMark Changelog
 
-## [1.11] - 2026-09-10
+## [1.11] - 2026-09-14
 - running `roslynator` on `Program.cs` and resolving warnings
+- added option to enable/disable tabs, default: disable
+- modified `settings.json` to have each element on a separate line
+- modify Makefile to allow recovery from release with pending commits
+- modify Makefile to block `release` with pending commits
 
 ## [1.10] - 2026-09-10
 - deal with `mailto:` links

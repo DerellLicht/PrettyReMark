@@ -19,6 +19,10 @@ class AppSettings
 {
     public bool DarkMode { get; set; }
     public bool DrawerOpen { get; set; } = true;
+
+    // Off by default -- most people navigate via the sidebar and never look at the tab bar.
+    // See the Options dialog's "Show Tab Bar" checkbox.
+    public bool ShowTabBar { get; set; } = false;
     public string Language { get; set; } = "";
     public List<string> RecentFiles { get; set; } = new();
     public List<string> SessionFiles { get; set; } = new();
@@ -73,8 +77,16 @@ class AppSettings
                 settings.SessionFiles = settings.SessionFiles?.Where(IsValidFilePath).ToList() ?? new();
                 if (!string.IsNullOrEmpty(settings.SessionActiveFile) && !IsValidFilePath(settings.SessionActiveFile))
                     settings.SessionActiveFile = "";
+
+                // Discard any scroll position for a file that isn't currently open in a tab --
+                // once a file's closed, there's no reason to keep remembering where you were in
+                // it, so this only checks SessionFiles, not RecentFiles.
+                var openFiles = new HashSet<string>(
+                    settings.SessionFiles ?? new(), StringComparer.OrdinalIgnoreCase);
                 settings.ScrollPositions = new Dictionary<string, double>(
-                    settings.ScrollPositions ?? new(), StringComparer.OrdinalIgnoreCase);
+                    (settings.ScrollPositions ?? new()).Where(kv => openFiles.Contains(kv.Key)),
+                    StringComparer.OrdinalIgnoreCase);
+
                 return settings;
             }
         }
@@ -82,11 +94,15 @@ class AppSettings
         return new AppSettings();
     }
 
+    // WriteIndented matches ColorConfig.Save() below -- both are meant to be human-readable if
+    // you ever open them by hand, and there's no reason for the two files to look different.
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+
     public void Save()
     {
         var dir = Path.GetDirectoryName(SettingsPath);
         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this));
+        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, WriteOptions));
     }
 }
 
@@ -654,6 +670,9 @@ partial class MainForm : Form
         if (settings.DrawerWidth.HasValue)
             ExecuteJs($"setDrawerWidth({settings.DrawerWidth.Value})");
 
+        // Apply tab bar visibility (default off -- see AppSettings.ShowTabBar)
+        ExecuteJs($"setTabBarVisible({(settings.ShowTabBar ? "true" : "false")})");
+
         await RestoreSession();
         if (_initialFilePath != null)
         {
@@ -1112,6 +1131,16 @@ partial class MainForm : Form
         ExecuteJs($"setDrawerOpen({(open ? "true" : "false")})");
     }
 
+    // Sets tab-bar visibility (the Options dialog's "Show Tab Bar" checkbox, default off --
+    // there's no keyboard shortcut for this one, unlike the sidebar, since it's not expected to
+    // be toggled often).
+    private void SetTabBarVisible(bool visible)
+    {
+        settings.ShowTabBar = visible;
+        settings.Save();
+        ExecuteJs($"setTabBarVisible({(visible ? "true" : "false")})");
+    }
+
     private void SetDarkMode(bool on)
     {
         darkModeItem.Checked = on;
@@ -1126,7 +1155,7 @@ partial class MainForm : Form
     // restarting.
     private void OpenOptionsDialog()
     {
-        using var dlg = new OptionsDialog(colorConfig, settings.DarkMode, settings.DrawerOpen, _strings);
+        using var dlg = new OptionsDialog(colorConfig, settings.DarkMode, settings.DrawerOpen, settings.ShowTabBar, _strings);
         if (dlg.ShowDialog(this) == DialogResult.OK)
         {
             colorConfig = dlg.ColorResult;
@@ -1135,6 +1164,7 @@ partial class MainForm : Form
 
             SetDarkMode(dlg.DarkModeResult);
             SetDrawerOpen(dlg.SidebarResult);
+            SetTabBarVisible(dlg.ShowTabBarResult);
         }
     }
 
@@ -1294,14 +1324,17 @@ class OptionsDialog : Form
 
     private readonly CheckBox darkModeCheck;
     private readonly CheckBox sidebarCheck;
+    private readonly CheckBox tabBarCheck;
 
     // The edited colors and non-color options, populated only if the user clicks OK (see OnOk
     // below) -- callers should only read these after checking ShowDialog() == DialogResult.OK.
     public ColorConfig ColorResult { get; private set; }
     public bool DarkModeResult { get; private set; }
     public bool SidebarResult { get; private set; }
+    public bool ShowTabBarResult { get; private set; }
 
-    public OptionsDialog(ColorConfig current, bool darkMode, bool sidebarVisible, Dictionary<string, string> strings)
+    public OptionsDialog(ColorConfig current, bool darkMode, bool sidebarVisible, bool showTabBar,
+        Dictionary<string, string> strings)
     {
         this.strings = strings;
 
@@ -1391,6 +1424,20 @@ class OptionsDialog : Form
         resetBtn.Click += (s, e) => ResetColorsToDefaults();
         layout.Controls.Add(resetBtn, 2, darkModeRow);
         layout.SetColumnSpan(resetBtn, 5); // cols 2..6: light swatch/button, gutter, dark swatch/button
+
+        // "Show Tab Bar" gets its own row, with nothing alongside it in the Light/Dark columns --
+        // unlike Dark Mode/Show Sidebar above and below it, it has no paired button to share the
+        // row with.
+        int tabBarRow = layout.RowCount;
+        layout.RowCount = tabBarRow + 1;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        tabBarCheck = new CheckBox
+        {
+            Text = T("options_tab_bar", "Show Tab Bar"), AutoSize = true,
+            Checked = showTabBar, Anchor = AnchorStyles.Left, Margin = new Padding(0, 4, 0, 4)
+        };
+        layout.Controls.Add(tabBarCheck, 0, tabBarRow);
 
         int sidebarRow = layout.RowCount;
         layout.RowCount = sidebarRow + 1;
@@ -1620,6 +1667,7 @@ class OptionsDialog : Form
         };
         DarkModeResult = darkModeCheck.Checked;
         SidebarResult = sidebarCheck.Checked;
+        ShowTabBarResult = tabBarCheck.Checked;
 
         DialogResult = DialogResult.OK;
         Close();
