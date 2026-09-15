@@ -1,6 +1,6 @@
 # PrettyReMark revisited
 
-A lightweight, native Markdown viewer for Windows with live reload and syntax highlighting.
+A lightweight, tabbed Markdown viewer for Windows with live reload and syntax highlighting.
 
 ---
 Summary of added features:
