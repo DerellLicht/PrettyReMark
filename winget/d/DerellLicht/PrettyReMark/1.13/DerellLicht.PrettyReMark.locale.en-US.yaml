@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 PackageIdentifier: DerellLicht.PrettyReMark
-PackageVersion: 1.12
+PackageVersion: 1.13
 PackageLocale: en-US
 Publisher: DerellLicht
 PublisherUrl: https://gitlab.com/DerellLicht
@@ -23,4 +24,4 @@ Tags:
 - viewer
 - markdown-viewer
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0

@@ -118,6 +118,9 @@ clean:
 # new target for silent install from base folder
 install:
 	$(SETUP_EXE) /SILENT /SUPPRESSMSGBOXES /NORESTART
+	
+sha256:
+	certutil -hashfile $(SETUP_ZIP) SHA256
 
 # --- Static analysis / linting ------------------------------------------
 # Four tools cover the whole codebase: Roslynator (C#), vnu.jar (the Nu Html
