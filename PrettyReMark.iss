@@ -24,7 +24,19 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName=D:\{#MyAppName}
+; {autopf} resolves to the per-user Program Files equivalent
+; (%LocalAppData%\Programs) since PrivilegesRequired=lowest below means this
+; never runs elevated -- no hardcoded drive letter, no UAC prompt, and it
+; matches the per-user install PrivilegesRequired=lowest already declares.
+; (If PrivilegesRequired is ever changed to "admin", {autopf} would instead
+; resolve to the real Program Files under HKLM, with no change needed here.)
+DefaultDirName={autopf}\{#MyAppName}
+; Explicit rather than relying on the "auto" default, so the destination
+; picker always shows for an interactive install regardless of how Inno's
+; heuristic reads DefaultDirName. Has no effect on /SILENT or /VERYSILENT --
+; Inno skips every wizard page unattended either way, so this stays
+; compliant with winget's "no interaction required" policy.
+DisableDirPage=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; "ArchitecturesAllowed=x64compatible" specifies that Setup cannot run on anything but x64 and Windows 11 on Arm.
 ArchitecturesAllowed=x64compatible

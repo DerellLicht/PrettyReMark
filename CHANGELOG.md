@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.13] - 2026-09-16
+- Update Inno Setup file to use configurable destination folder
+
 ## [1.12] - 2026-09-14
 - Adding debug options
 - begin work on `winget` distribution

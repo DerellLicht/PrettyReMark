@@ -22,7 +22,7 @@ TAG        = v$(VERSION)
 # repo is a fork of eagle1's original and glab otherwise asks each time.
 GLAB_REPO = DerellLicht/pretty-mark
 
-.PHONY: single setup dist release update retag re-release check-clean clean
+.PHONY: single setup dist release update retag re-release check-clean clean install
 
 # rebuild.cmd's "single" target -- stand-alone self-extracting exe.
 # (The old "build" target -- loose-file publish -- is gone: PrettyReMark.iss
@@ -115,6 +115,9 @@ re-release: retag update
 clean:
 	rm -rf bin obj Output
 
+# new target for silent install from base folder
+install:
+	$(SETUP_EXE) /SILENT /SUPPRESSMSGBOXES /NORESTART
 
 # --- Static analysis / linting ------------------------------------------
 # Four tools cover the whole codebase: Roslynator (C#), vnu.jar (the Nu Html
