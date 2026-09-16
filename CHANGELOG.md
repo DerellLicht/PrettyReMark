@@ -2,6 +2,7 @@
 
 ## [1.12] - 2026-09-14
 - Adding debug options
+- begin work on `winget` distribution
 
 ## [1.11] - 2026-09-14
 - running `roslynator` on `Program.cs` and resolving warnings
