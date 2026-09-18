@@ -820,9 +820,39 @@ function _showCurrentMatch() {
     _findMatches.forEach(function(m) { m.classList.remove('current'); });
     if (_findCurrent >= 0 && _findCurrent < _findMatches.length) {
         var m = _findMatches[_findCurrent];
+        _revealMatch(m);
         m.classList.add('current');
-        m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        _scrollMatchIntoView(m);
     }
+}
+
+// A closed <details> (a supported markdown/HTML tag here, e.g. collapsible sections like
+// split_convos.py's "Conversation Overview") renders none of its content -- no box, no
+// position -- so a match inside one can't be scrolled to at all until it's opened. Walk up
+// from the match and open any closed <details> ancestors first, the same way Chrome's own
+// find-in-page auto-expands <details> to reveal a match. Left open afterward rather than
+// re-collapsed, again matching native find behavior.
+function _revealMatch(mark) {
+    var el = mark.parentElement;
+    while (el && el !== _el) {
+        if (el.tagName === 'DETAILS' && !el.open) el.open = true;
+        el = el.parentElement;
+    }
+}
+
+// mark.scrollIntoView() looks correct but silently no-ops here: WebView2/Chromium's smooth-scroll
+// path doesn't account for #content-area's CSS `zoom` scaling (see _updateZoom above) when
+// computing the target offset, so it lands on ~0 scroll distance and the viewport never moves --
+// even at zoom 1.0, since just having `zoom` set establishes the broken coordinate mapping.
+// getBoundingClientRect() and #content-area's own scrollTop stay consistent under CSS zoom
+// (unlike transform: scale), so computing the delta ourselves and calling scrollTo() on the
+// container directly sidesteps scrollIntoView's internal calculation entirely.
+function _scrollMatchIntoView(mark) {
+    var container = document.getElementById('content-area');
+    var containerRect = container.getBoundingClientRect();
+    var markRect = mark.getBoundingClientRect();
+    var delta = (markRect.top + markRect.height / 2) - (containerRect.top + containerRect.height / 2);
+    container.scrollTo({ top: container.scrollTop + delta, behavior: 'smooth' });
 }
 
 function _updateFindCount() {
@@ -871,7 +901,7 @@ document.getElementById('find-close').addEventListener('click', function() {
     _clearFind();
 });
 document.getElementById('find-input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'F3') {
         e.preventDefault();
         if (e.shiftKey) findPrev(); else findNext();
     }
@@ -896,6 +926,14 @@ document.addEventListener('keydown', function(e) {
     else if (e.ctrlKey && e.key === 'f') {
         e.preventDefault();
         toggleFind();
+    }
+    else if (e.key === 'F3') {
+        // Only meaningful once a search has actually been run; otherwise let it fall through
+        // (e.g. to WebView2's own default handling) instead of eating the keypress for nothing.
+        if (_findMatches.length > 0) {
+            e.preventDefault();
+            if (e.shiftKey) findPrev(); else findNext();
+        }
     }
     else if (e.key === 'F11') {
         e.preventDefault();
