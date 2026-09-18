@@ -34,21 +34,21 @@
 	</Company_Info>
 	<Program_Info>
 		<Program_Name>PrettyReMark</Program_Name>
-		<Program_Version>1.08</Program_Version>
+		<Program_Version>1.13</Program_Version>
 		<Program_Release_Month>09</Program_Release_Month>
-		<Program_Release_Day>09</Program_Release_Day>
+		<Program_Release_Day>16</Program_Release_Day>
 		<Program_Release_Year>2026</Program_Release_Year>
 		<Program_Cost_Dollars>0</Program_Cost_Dollars>
 		<Program_Cost_Other_Code />
 		<Program_Cost_Other />
 		<Program_Type>Freeware</Program_Type>
 		<Program_Release_Status>New Release</Program_Release_Status>
-		<Program_Install_Support>No Install Support</Program_Install_Support>
+		<Program_Install_Support>Install and Uninstall</Program_Install_Support>
 		<Program_OS_Support>WinVista,WinVista x64</Program_OS_Support>
 		<Program_Language>English</Program_Language>
 		<Program_Change_Info />
-		<Program_Specific_Category>Development Tools</Program_Specific_Category>
-		<Program_Category_Class>Development::Other</Program_Category_Class>
+		<Program_Specific_Category>Utilities</Program_Specific_Category>
+		<Program_Category_Class>System Utilities::File &amp; Disk Management</Program_Category_Class>
 		<Program_System_Requirements />
 		<File_Info>
 			<File_Size_Bytes>51569178</File_Size_Bytes>
@@ -72,7 +72,7 @@
 			<Char_Desc_80>A lightweight Markdown viewer for Windows with live reload and syntax hiliting</Char_Desc_80>
 			<Char_Desc_250 />
 			<Char_Desc_450 />
-			<Char_Desc_2000>A lightweight, native Markdown viewer for Windows with live reload and syntax highlighting.
+			<Char_Desc_2000>A lightweight, tabbed Markdown viewer for Windows with live reload and syntax highlighting.
 
 Summary of added features:
 
@@ -95,7 +95,7 @@ as well as program restarts.
 			<Application_XML_File_URL />
 		</Application_URLs>
 		<Download_URLs>
-			<Primary_Download_URL>https://gitlab.com/DerellLicht/pretty-mark/-/releases/v1.08/downloads/PrettyReMarkV1.08.setup.zip</Primary_Download_URL>
+			<Primary_Download_URL>https://gitlab.com/DerellLicht/pretty-mark/-/releases/v1.13/downloads/PrettyReMarkV1.13.setup.zip</Primary_Download_URL>
 			<Secondary_Download_URL />
 			<Additional_Download_URL_1 />
 			<Additional_Download_URL_2 />
