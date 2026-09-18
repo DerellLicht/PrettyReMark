@@ -105,6 +105,19 @@ release: check-clean dist
 # embedded before each internal line, so without this each $$id comes out
 # as e.g. "13074777\r" and glab's own request-building chokes on the
 # stray \r in the URL ("invalid control character in URL").
+#
+# Also re-slices CHANGELOG.md and pushes it as the release notes, same as
+# "release" does on first publish. Without this, editing CHANGELOG.md's
+# current-version section AFTER the initial "release" (the "one more
+# thing" case this whole target exists for) would leave GitLab's notes
+# field stale forever, even though the committed CHANGELOG.md is current
+# -- "update" would fix the binary but silently leave the notes behind.
+# There's no separate "glab release update" subcommand; "glab release
+# create" doubles as update when the tag already exists (confirmed via
+# glab's own docs: "Create a new GitLab release ... or update an existing
+# one"), touching only what's passed -- so calling it again with just
+# --notes-file, no asset argument, updates notes without disturbing the
+# asset link just uploaded above.
 update: dist
 	@echo Updating assets for existing release $(TAG)...
 	@for id in $$(glab api "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links" \
@@ -113,7 +126,10 @@ update: dist
 		glab api -X DELETE "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links/$$id" >/dev/null; \
 	done
 	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
-	@echo Release $(TAG) assets updated on GitLab!
+	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
+	glab release create $(TAG) --notes-file temp_notes.md -R $(GLAB_REPO)
+	rm temp_notes.md
+	@echo Release $(TAG) assets and notes updated on GitLab!
 
 # Recovery for "I ran release, then realized uncommitted changes were left
 # out" -- force-moves $(TAG) to the current commit and force-pushes that
