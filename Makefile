@@ -22,6 +22,11 @@ TAG        = v$(VERSION)
 # repo is a fork of eagle1's original and glab otherwise asks each time.
 GLAB_REPO = DerellLicht/pretty-mark
 
+# GLAB_REPO with the "/" percent-encoded, for use as the :id in "glab api"
+# path segments (e.g. projects/<GLAB_REPO_ENC>/releases/...) -- glab api
+# doesn't accept a bare "owner/repo" there the way -R does elsewhere.
+GLAB_REPO_ENC = $(subst /,%2F,$(GLAB_REPO))
+
 .PHONY: single setup dist release update retag re-release check-clean clean install
 
 # rebuild.cmd's "single" target -- stand-alone self-extracting exe.
@@ -80,14 +85,33 @@ release: check-clean dist
 # regenerate/reattach the same artifact. If the source has changed since the
 # tag was created, use "re-release" below instead -- this target will happily
 # upload a binary that no longer matches what git says $(TAG) is.
+#
 # NOTE: unlike "gh release upload", "glab release upload" has no --clobber
 # flag -- CONFIRMED (2026-09) it does NOT overwrite a same-named asset, it
 # errors: "Name has already been taken, Filepath has already been taken."
-# glab also has no per-asset delete (only "glab release delete <tag>", which
-# removes the whole release). Fix: on GitLab, edit the release and remove
-# the stale asset link by hand, then re-run this target.
+# This bites every time this target is re-run against a version whose
+# assets were already uploaded once -- the "do a release, then immediately
+# spot something to fix" case -- since a link with that name already
+# exists on $(TAG). glab has no per-asset delete subcommand (only
+# "glab release delete <tag>", which removes the whole release), so
+# instead this target looks up any existing link matching this build's
+# filename via "glab api" and deletes it first, before uploading. That
+# makes "update" (and therefore "re-release") idempotent -- safe to run
+# as many times as needed against the same tag. Requires jq (winget
+# install jqlang.jq) to pick the matching link's id out of the
+# link-listing JSON. The "tr -d '\r'" is required because "glab api" is a
+# native Windows binary and emits CRLF line endings; $(...) command
+# substitution only strips the capture's *trailing* newline, not the \r
+# embedded before each internal line, so without this each $$id comes out
+# as e.g. "13074777\r" and glab's own request-building chokes on the
+# stray \r in the URL ("invalid control character in URL").
 update: dist
 	@echo Updating assets for existing release $(TAG)...
+	@for id in $$(glab api "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links" \
+	    | jq -r '.[] | select(.name=="$(notdir $(SETUP_ZIP))") | .id' | tr -d '\r'); do \
+		echo Removing stale asset link $$id for $(notdir $(SETUP_ZIP))...; \
+		glab api -X DELETE "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links/$$id" >/dev/null; \
+	done
 	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
 	@echo Release $(TAG) assets updated on GitLab!
 
