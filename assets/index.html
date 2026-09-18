@@ -249,6 +249,14 @@ body.dark mark.find-match.current { background: #b35c44; }
 <script src="highlight.min.js"></script>
 <script src="purify.min.js"></script>
 <script>
+// Disable highlight.js language auto-detection: an unlabeled ```-fenced block
+// (no "language-xxx" class from marked) would otherwise be run through every
+// bundled grammar and highlighted using whichever one scores best -- producing
+// bogus "syntax highlighting" on plain text/prose. Blocks that DO specify a
+// language are unaffected, since those skip auto-detection entirely and go
+// straight to that named grammar.
+hljs.configure({ languages: [] });
+
 var _el = document.getElementById('content');
 var _zoom = 1.0;
 var _dark = false;
