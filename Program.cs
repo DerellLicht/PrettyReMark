@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -279,6 +280,16 @@ static class Program
 
 partial class MainForm : Form
 {
+    // Version string baked into the assembly by "-p:Version=$(VERSION)" on the "dotnet publish"
+    // line in the Makefile ("single" target) -- CHANGELOG.md is the only place the version
+    // number is ever written by hand; this just reads it back out of the build, replacing the
+    // old hand-generated AppVersion.cs. ToString(2) keeps the "major.minor" format the rest of
+    // the app expects (e.g. "1.14"), matching the "[0-9]+\.[0-9]+" the Makefile scrapes out of
+    // CHANGELOG.md; the "?? "0.0"" fallback only fires if a build somehow skips -p:Version
+    // entirely (e.g. running "dotnet build" by hand outside the Makefile).
+    private static readonly string CurrentVersion =
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(2) ?? "0.0";
+
     private WebView2 webView;
     private System.Timers.Timer debounceTimer;
     private ToolStripMenuItem darkModeItem;
@@ -665,7 +676,7 @@ partial class MainForm : Form
         SendStringsToJs();
 
         // Send app version to JS (shown in the About dialog)
-        ExecuteJs($"setAppVersion({JsonSerializer.Serialize(AppVersion.Current)})");
+        ExecuteJs($"setAppVersion({JsonSerializer.Serialize(CurrentVersion)})");
 
         // Send user color overrides to JS; applied whenever the theme is (re)set (see setDarkMode in index.html)
         ExecuteJs($"setColorOverrides({JsonSerializer.Serialize(colorConfig)})");
@@ -969,7 +980,7 @@ partial class MainForm : Form
 
     private void UpdateTitle(TabInfo tab)
     {
-        var name = $"{T("app_name")} v{AppVersion.Current}";
+        var name = $"{T("app_name")} v{CurrentVersion}";
         Text = tab != null ? $"{tab.FileName} \u2014 {name}" : name;
     }
 
