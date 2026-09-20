@@ -11,6 +11,8 @@ Summary of added features:
   Program colors are stored in `%appdata%\PrettyReMark\colors.json`
 - Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
+- Make sidebar resizeable, add tooltips to files and paths
+- Make tab bar optional, controled by Options dialog  
 
 Here is its [Home page](https://derelllicht.42web.io/PrettyReMark.html)  
 Download the [installer](https://gitlab.com/DerellLicht/pretty-mark/-/releases/v1.08/downloads/PrettyReMarkV1.08.setup.zip) here  
