@@ -20,6 +20,8 @@ See [Changelog](CHANGELOG.md) for the full revision history
 `PrettyReMark` uses the [MIT](LICENSE.MIT.txt) license; view the file here.  
 Get the [PAD file](PrettyReMark.pad.xml) here
 
+![Sample image](images/PrettyReMark.screen.and.options.jpg)
+
 ---
 Notes on this revisited version of `PrettyReMark` ...  
 I did the design specification, testing, and guidance on the revisions in this fork of the program.
