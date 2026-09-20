@@ -4,11 +4,11 @@ A lightweight, tabbed Markdown viewer for Windows with live reload and syntax hi
 
 ---
 Summary of added features:
-- Fixed links to image and html files, so they open in appropriate programs
+- Fixed image, html files, `mailto:`, links, so they open in appropriate programs
 - added version number to About dialog (see `AppVersion.cs`)
-- moved program colors to `%appdata%\PrettyReMark\colors.json`
 - save/restore size/position of dialog
-- Implement Options dialog and menu link
+- Implement Options dialog; make all program colors settable here;  
+  Program colors are stored in `%appdata%\PrettyReMark\colors.json`
 - Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
 
