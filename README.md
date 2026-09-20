@@ -4,7 +4,7 @@ A lightweight, tabbed Markdown viewer for Windows with live reload and syntax hi
 
 ---
 Summary of added features:
-- Fixed image, html, `mailto:`, links, so they open in appropriate programs
+- Fixed image, html, `mailto:`, links so they open in appropriate programs
 - added version number to About dialog (see `AppVersion.cs`)
 - save/restore size/position of dialog
 - Implement Options dialog; make all program colors settable here;  
