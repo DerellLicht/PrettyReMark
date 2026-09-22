@@ -1,7 +1,7 @@
 # PrettyReMark Changelog
 
 ## [1.16] - 2026-09-22
-- fixing documents
+- fixing documents and images
 
 ## [1.15] - 2026-09-22
 - Changed default state of `show tab bar` option from `disabled` to `enabled`
