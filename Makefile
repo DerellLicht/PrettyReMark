@@ -127,7 +127,7 @@ update: dist
 	rm temp_notes.md
 	@echo Release $(TAG) assets and notes updated on GitLab!
 
-# Recovery for "I ran release, then realized uncommitted changes were left
+# Recovery for "I ran release, then realized uncommitted changes were left out
 # out" -- force-moves $(TAG) to the current commit and force-pushes that
 # move, then rebuilds and re-uploads via "update" so the release's binary
 # matches where the tag now points. Safe for a solo repo (nobody else has
