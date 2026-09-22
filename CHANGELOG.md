@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.15] - 2026-09-22
+- Changed default state of `show tab bar` option from `disabled` to `enabled`
+
 ## [1.14] - 2026-09-18
 - Fixed: find/F3 navigation not scrolling to matches (broken by CSS zoom on #content-area) 
 - Fixed: find not reaching matches inside collapsed [details] sections (now auto-expanded on jump, matching native find-in-page behavior).

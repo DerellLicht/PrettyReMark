@@ -508,7 +508,7 @@ function setDrawerOpen(open) {
 }
 
 // Called once at startup from Program.cs (OnNavigationCompleted) and whenever the Options
-// dialog's "Show Tab Bar" checkbox changes -- default off, see AppSettings.ShowTabBar. Unlike
+// dialog's "Show Tab Bar" checkbox changes -- default on, see AppSettings.ShowTabBar. Unlike
 // the drawer, there's no user-facing toggle/shortcut for this beyond the checkbox itself.
 function setTabBarVisible(visible) {
     document.getElementById('tab-bar').classList.toggle('tabbar-hidden', !visible);

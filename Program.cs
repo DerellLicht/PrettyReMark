@@ -21,9 +21,9 @@ class AppSettings
     public bool DarkMode { get; set; }
     public bool DrawerOpen { get; set; } = true;
 
-    // Off by default -- most people navigate via the sidebar and never look at the tab bar.
+    // On by default -- the program is advertised as tabbed, so new users should see the tabs.
     // See the Options dialog's "Show Tab Bar" checkbox.
-    public bool ShowTabBar { get; set; } = false;
+    public bool ShowTabBar { get; set; } = true;
 
     // Undocumented: there's no UI for this -- it's meant to be hand-set to true in settings.json
     // while PrettyReMark is closed. When true, the Options dialog gains a "Reload Colors.json"
@@ -689,7 +689,7 @@ partial class MainForm : Form
         if (settings.DrawerWidth.HasValue)
             ExecuteJs($"setDrawerWidth({settings.DrawerWidth.Value})");
 
-        // Apply tab bar visibility (default off -- see AppSettings.ShowTabBar)
+        // Apply tab bar visibility (default on -- see AppSettings.ShowTabBar)
         ExecuteJs($"setTabBarVisible({(settings.ShowTabBar ? "true" : "false")})");
 
         await RestoreSession();
@@ -1150,7 +1150,7 @@ partial class MainForm : Form
         ExecuteJs($"setDrawerOpen({(open ? "true" : "false")})");
     }
 
-    // Sets tab-bar visibility (the Options dialog's "Show Tab Bar" checkbox, default off --
+    // Sets tab-bar visibility (the Options dialog's "Show Tab Bar" checkbox, default on --
     // there's no keyboard shortcut for this one, unlike the sidebar, since it's not expected to
     // be toggled often).
     private void SetTabBarVisible(bool visible)
