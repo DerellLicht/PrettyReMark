@@ -2,7 +2,7 @@
 
 ## [1.14] - 2026-09-18
 - Fixed: find/F3 navigation not scrolling to matches (broken by CSS zoom on #content-area) 
-- Fixed: find not reaching matches inside collapsed <details> sections (now auto-expanded on jump, matching native find-in-page behavior).
+- Fixed: find not reaching matches inside collapsed [details] sections (now auto-expanded on jump, matching native find-in-page behavior).
 - Fixed: unlabeled fenced blocks getting syntax highlighting
 
 ## [1.13] - 2026-09-16
