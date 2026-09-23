@@ -35,9 +35,9 @@ setup: single
 dist: setup
 	zip -j $(SETUP_ZIP) $(SETUP_EXE)
 
-# Blocks release/retag/publish on an unclean working tree -- catches building
-# from a tree that doesn't match what the tag is about to point at. Runs
-# before the expensive rebuild.
+# Blocks release/retag on an unclean working tree -- catches building
+# from a tree that doesn't match what the tag is about to point at. 
+# Runs before the expensive rebuild.
 check-clean:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "ERROR: uncommitted changes present -- commit before releasing."; \

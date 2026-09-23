@@ -803,6 +803,13 @@ partial class MainForm : Form
                 settings.DrawerWidth = width;
                 settings.Save();
             }
+            else if (type == "reorder_tabs")
+            {
+                // Sent once, on drop, from index.html's _applyTabOrder.
+                var order = doc.RootElement.GetProperty("order").EnumerateArray()
+                    .Select(x => x.GetString()).ToList();
+                ReorderTabs(order);
+            }
         }
         catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"PrettyReMark: WebMessage parse failed: {ex.Message}"); }
     }
@@ -823,6 +830,7 @@ partial class MainForm : Form
             id = tab.Id,
             name = tab.FileName,
             path = Path.GetDirectoryName(tab.FilePath),
+            fullPath = tab.FilePath, // for the tab-bar tooltip; distinguishes same-named files in different folders
             scrollTop
         });
     }
@@ -919,6 +927,24 @@ partial class MainForm : Form
                 await webView.ExecuteScriptAsync("showWelcome()");
             }
         }
+        SaveSession();
+    }
+
+    // Brings `tabs` into the order set by a sidebar drag (see index.html's _applyTabOrder),
+    // so SaveSession() below persists it. No re-render/activeTabId change needed -- reorder only.
+    private void ReorderTabs(List<string> order)
+    {
+        var lookup = tabs.ToDictionary(t => t.Id);
+        var reordered = order.Where(lookup.ContainsKey).Select(id => lookup[id]).ToList();
+
+        // Defensive: keep any tab missing from `order` (e.g. closed mid-drag) rather than losing it.
+        foreach (var tab in tabs)
+        {
+            if (!reordered.Contains(tab)) reordered.Add(tab);
+        }
+
+        tabs.Clear();
+        tabs.AddRange(reordered);
         SaveSession();
     }
 

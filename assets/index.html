@@ -62,6 +62,8 @@ body.dark #drawer-header button { color: #8b949e; }
 body.dark .drawer-item:hover { background: #1c2129; }
 .drawer-item.active { border-left-color: #0969da; background: #ddf4ff; }
 body.dark .drawer-item.active { border-left-color: #4493f8; background: #1a2332; }
+/* Item being dragged (see _initDrawerDragAndDrop) */
+.drawer-item.dragging { opacity: 0.4; }
 
 .drawer-info { overflow: hidden; flex: 1; min-width: 0; }
 .drawer-filename {
@@ -578,6 +580,9 @@ var _activeTabDir = null;
 var _activeTabId = null;
 var _scrollPositions = {};  // tab id -> #content-area.scrollTop, captured on switch-away (activateTab below)
 
+// #drawer-list is static markup, so this only runs once (declared further down, hoisted).
+_initDrawerDragAndDrop();
+
 function addTab(info, activate) {
     // info: { id, name, path, scrollTop }. scrollTop is the position persisted from a previous
     // session (Program.cs looks it up by file path in settings.ScrollPositions) -- seeding the
@@ -600,6 +605,7 @@ function addTab(info, activate) {
     var tab = document.createElement('div');
     tab.className = 'tab';
     tab.dataset.id = info.id;
+    tab.title = info.fullPath || info.name; // full path, not just name -- disambiguates same-named files from different folders
     tab.innerHTML = '<span class="tab-name">' + _esc(info.name) + '</span><span class="tab-close">&times;</span>';
     tab.querySelector('.tab-name').addEventListener('click', function() {
         window.chrome.webview.postMessage({ type: 'switch_tab', id: info.id });
@@ -615,6 +621,7 @@ function addTab(info, activate) {
     var item = document.createElement('div');
     item.className = 'drawer-item';
     item.dataset.id = info.id;
+    item.draggable = true;
     // _esc()'d values go straight into a title="..." attribute below, unescaped for that
     // context -- safe only because it's not general-purpose text: info.name/info.path are
     // real Windows file/folder names, and Windows disallows a literal '"' in those, so there's
@@ -665,6 +672,16 @@ function activateTab(id) {
     document.querySelectorAll('#drawer-list .drawer-item').forEach(function(d) {
         d.classList.toggle('active', d.dataset.id === id);
     });
+    // Bring the active tab into view -- it may be scrolled off (#tab-bar overflow-x: auto)
+    // if selection came from the sidebar rather than a tab click.
+    _scrollActiveTabIntoView();
+}
+
+// Also called by _applyTabOrder() below, after a drag-reorder.
+function _scrollActiveTabIntoView() {
+    if (!_activeTabId) return;
+    var tab = document.querySelector('#tab-bar .tab[data-id="' + _activeTabId + '"]');
+    if (tab) tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 }
 
 function removeTab(id) {
@@ -674,6 +691,63 @@ function removeTab(id) {
     if (tab) tab.remove();
     var item = document.querySelector('#drawer-list .drawer-item[data-id="' + id + '"]');
     if (item) item.remove();
+}
+
+// --- Sidebar drag-to-reorder ---
+// Reorders both sidebar and tab bar (addTab/removeTab always keep them as one list).
+// Native HTML5 drag-and-drop, not hand-rolled mouse tracking like the drawer resizer.
+var _dragId = null;
+
+function _initDrawerDragAndDrop() {
+    var list = document.getElementById('drawer-list');
+
+    list.addEventListener('dragstart', function(e) {
+        var item = e.target.closest('.drawer-item');
+        if (!item) return;
+        _dragId = item.dataset.id;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _dragId); // Firefox requires this to allow the drag
+    });
+
+    // Live-shift: move the dragged item in the DOM as you drag over each target.
+    list.addEventListener('dragover', function(e) {
+        e.preventDefault(); // required to be a valid drop target
+        if (!_dragId) return;
+        var dragging = list.querySelector('.drawer-item.dragging');
+        var target = e.target.closest('.drawer-item');
+        if (!dragging || !target || target === dragging) return;
+        var rect = target.getBoundingClientRect();
+        var before = (e.clientY - rect.top) < (rect.height / 2);
+        list.insertBefore(dragging, before ? target : target.nextSibling);
+    });
+
+    list.addEventListener('drop', function(e) { e.preventDefault(); });
+
+    // dragend always fires exactly once, so finalize here rather than in drop.
+    list.addEventListener('dragend', function() {
+        var dragging = list.querySelector('.drawer-item.dragging');
+        if (dragging) dragging.classList.remove('dragging');
+        if (!_dragId) return;
+        _dragId = null;
+        var order = Array.prototype.map.call(
+            list.querySelectorAll('.drawer-item'),
+            function(el) { return el.dataset.id; }
+        );
+        _applyTabOrder(order);
+    });
+}
+
+// Reorders the tab bar to match, notifies Program.cs to persist it, keeps active tab visible.
+function _applyTabOrder(order) {
+    var tabBar = document.getElementById('tab-bar');
+    // appendChild moves an existing node, so this leaves tabs in `order` after #drawer-toggle.
+    order.forEach(function(id) {
+        var tab = tabBar.querySelector('.tab[data-id="' + id + '"]');
+        if (tab) tabBar.appendChild(tab);
+    });
+    window.chrome.webview.postMessage({ type: 'reorder_tabs', order: order });
+    _scrollActiveTabIntoView();
 }
 
 // Persists a tab's scroll position to disk (via Program.cs -> settings.ScrollPositions, keyed

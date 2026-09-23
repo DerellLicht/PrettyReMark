@@ -1,5 +1,9 @@
 # PrettyReMark Changelog
 
+## [1.17] - 2026-09-23
+- Files in sidebar can now be drag-and-dropped to new positions in the list
+- Tab bar is re-positioned to show the current active file
+
 ## [1.16] - 2026-09-22
 - fixing documents and images
 - Modify tab bar colors to use sidebar color options
