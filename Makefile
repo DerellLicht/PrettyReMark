@@ -19,7 +19,7 @@ GLAB_REPO = DerellLicht/pretty-mark
 # there directly the way it is with -R elsewhere.
 GLAB_REPO_ENC = $(subst /,%2F,$(GLAB_REPO))
 
-.PHONY: single setup dist release update retag re-release publish check-clean clean install
+.PHONY: single setup dist release update retag re-release check-clean clean install
 
 # Self-contained single-exe build.
 single:
@@ -56,23 +56,26 @@ release: check-clean dist
 	rm temp_notes.md
 	@echo Release $(TAG) uploaded to GitLab!
 
-# Re-uploads the installer + notes to an EXISTING release (tag unchanged).
-# Requires a release to already exist for $(TAG) -- see "publish" below if
-# it doesn't. glab has no upload --clobber (re-uploading a same-named asset
-# errors), so any stale link with this filename is looked up and deleted
-# first, via glab api + jq. "tr -d '\r'" strips the CRLF glab emits on
-# Windows, which otherwise breaks the id substitution.
+# Updates (or creates, if missing) the release for $(TAG): notes first, then
+# assets. "glab release create" on an existing release just updates notes
+# without touching assets, and creates the release if it doesn't exist yet
+# -- so running it first makes this target self-healing either way, instead
+# of assuming the release already exists. Then: glab has no upload --clobber
+# (re-uploading a same-named asset errors), so any stale link with this
+# filename is looked up and deleted first, via glab api + jq. "tr -d '\r'"
+# strips the CRLF glab emits on Windows, which otherwise breaks the id
+# substitution.
 update: dist
-	@echo Updating assets for existing release $(TAG)...
+	@echo Updating release $(TAG)...
+	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
+	glab release create $(TAG) --notes-file temp_notes.md -R $(GLAB_REPO)
+	rm temp_notes.md
 	@for id in $$(glab api "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links" \
 	    | jq -r '.[] | select(.name=="$(notdir $(SETUP_ZIP))") | .id' | tr -d '\r'); do \
 		echo Removing stale asset link $$id for $(notdir $(SETUP_ZIP))...; \
 		glab api -X DELETE "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links/$$id" >/dev/null; \
 	done
 	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
-	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
-	glab release create $(TAG) --notes-file temp_notes.md -R $(GLAB_REPO)
-	rm temp_notes.md
 	@echo Release $(TAG) assets and notes updated on GitLab!
 
 # Recovery for "released with pending changes left out of the tag": force-
@@ -81,26 +84,16 @@ update: dist
 # already fetched it. Deliberately separate from "release", which uses a
 # bare (non -f) "git tag" as a guard rail.
 retag: check-clean
+	@if git rev-parse $(TAG) >/dev/null 2>&1; then \
+		echo "Retagging existing tag $(TAG)."; \
+	else \
+		echo "Note: $(TAG) doesn't exist yet -- this will be its first release."; \
+	fi
 	git tag -f $(TAG)
 	git push origin $(TAG) --force
 
 re-release: retag update
 	@echo Release $(TAG) retagged and re-released.
-
-# Recovery for "the tag is already pushed, but no GitLab release was ever
-# created for it" -- e.g. running re-release/update before "release" was
-# ever run once. Skips tagging (the tag's already right) and just builds +
-# creates the release against it. Refuses if HEAD doesn't match $(TAG); use
-# retag/re-release instead in that case.
-publish: check-clean dist
-	@if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse $(TAG)^{})" ]; then \
-		echo "ERROR: HEAD doesn't match tag $(TAG) -- use retag/re-release instead."; \
-		exit 1; \
-	fi
-	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
-	glab release create $(TAG) $(SETUP_ZIP) --notes-file temp_notes.md -R $(GLAB_REPO)
-	rm temp_notes.md
-	@echo Release $(TAG) created on GitLab from existing tag!
 
 clean:
 	rm -rf bin obj Output
