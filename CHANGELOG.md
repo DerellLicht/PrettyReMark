@@ -2,6 +2,7 @@
 
 ## [1.16] - 2026-09-22
 - fixing documents and images
+- Modify tab bar colors to use sidebar color options
 
 ## [1.15] - 2026-09-22
 - Changed default state of `show tab bar` option from `disabled` to `enabled`

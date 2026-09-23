@@ -127,6 +127,10 @@ class ColorTheme
     // Sidebar (the "Open Files" drawer) and page-background colors. Defaults below match the
     // hardcoded values in assets/index.html's <style> block -- these overrides exist so the user
     // can change them without editing HTML/CSS by hand.
+    //
+    // Background/Filename/Path also double as the tab bar's background/selected-text/
+    // unselected-text colors (see _applyColorOverrides() in index.html) -- no separate tab-bar
+    // fields, by design, so the two stay visually in sync.
     public string SidebarBackgroundColor { get; set; }
     public string SidebarFilenameColor { get; set; }
     public string SidebarPathColor { get; set; }
@@ -1398,6 +1402,9 @@ class OptionsDialog : Form
             current.Light.TextColor, current.Dark.TextColor);
         bgSwatches = AddColorRow(layout, T("options_bg", "Background Color"),
             current.Light.BackgroundColor, current.Dark.BackgroundColor);
+        // These three rows also drive the tab bar (background/selected-text/unselected-text,
+        // respectively) -- see the comment on ColorTheme's fields above. No separate tab-bar
+        // rows on purpose.
         sidebarBgSwatches = AddColorRow(layout, T("options_sidebar_bg", "Sidebar Background"),
             current.Light.SidebarBackgroundColor, current.Dark.SidebarBackgroundColor);
         sidebarFilenameSwatches = AddColorRow(layout, T("options_sidebar_filename", "Sidebar Filename"),

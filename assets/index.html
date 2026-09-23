@@ -329,6 +329,14 @@ function _applyColorOverrides() {
 
     if (theme.SidebarHoverBackgroundColor) rules += scope + '.drawer-item:hover{background:' + theme.SidebarHoverBackgroundColor + ';}';
 
+    // Tab bar deliberately has no color fields of its own -- it's aliased onto the three
+    // sidebar fields above (same scoping rules apply: dark-mode base rules for #tab-bar/.tab
+    // also live under "body.dark X" in <head>, so they need the same "body.dark " prefix to
+    // be out-specificity'd).
+    if (theme.SidebarBackgroundColor) rules += scope + '#tab-bar{background:' + theme.SidebarBackgroundColor + ';}';
+    if (theme.SidebarPathColor) rules += scope + '.tab{color:' + theme.SidebarPathColor + ';}';
+    if (theme.SidebarFilenameColor) rules += scope + '.tab.active{color:' + theme.SidebarFilenameColor + ';}';
+
     el.textContent = rules;
 }
 
