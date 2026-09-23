@@ -1,48 +1,33 @@
 # PrettyReMark -- Makefile (replaces rebuild.cmd)
-#
 # Wraps dotnet publish + Inno Setup for building, and glab for GitLab releases.
-# VERSION is scraped from the most recent CHANGELOG.md entry and threaded through
-# to Inno Setup via /D, so PrettyReMark.iss no longer needs its version hardcoded
-# (see the #ifndef MyAppVersion block that needs adding there).
-#
-# VERSION is threaded straight into "dotnet publish" via -p:Version, so
-# CHANGELOG.md is the single source of truth with no intermediate generated
-# file -- Program.cs reads the version back out of the built assembly at
-# runtime (see Assembly.GetExecutingAssembly() there) instead of a
-# hand-generated AppVersion.cs.
+# VERSION comes from CHANGELOG.md and feeds dotnet publish, Inno Setup, and
+# the release/tag names -- no separate generated version file.
 
-# Pull the most recent version out of CHANGELOG.md, e.g. "## [1.07]" -> 1.07
-# Assumes the same "## [x.y]" header format used in the wbigcalc project --
-# adjust the regex below if PrettyReMark's CHANGELOG.md differs.
+# Most recent "## [x.y]" header in CHANGELOG.md, e.g. "## [1.16]" -> 1.16
 VERSION := $(shell grep -oE '\[[0-9]+\.[0-9]+\]' CHANGELOG.md | head -n 1 | tr -d '[]')
 
 SETUP_EXE = Output/PrettyReMarkV$(VERSION).setup.exe
 SETUP_ZIP = Output/PrettyReMarkV$(VERSION).setup.zip
 TAG        = v$(VERSION)
 
-# Explicit -R avoids glab's "which is the base repository?" prompt, since this
-# repo is a fork of eagle1's original and glab otherwise asks each time.
+# Explicit -R avoids glab's "which is the base repository?" prompt (this repo
+# is a fork of eagle1's original).
 GLAB_REPO = DerellLicht/pretty-mark
 
-# GLAB_REPO with the "/" percent-encoded, for use as the :id in "glab api"
-# path segments (e.g. projects/<GLAB_REPO_ENC>/releases/...) -- glab api
-# doesn't accept a bare "owner/repo" there the way -R does elsewhere.
+# GLAB_REPO with "/" percent-encoded, for glab api's :id path segments
+# (e.g. projects/<GLAB_REPO_ENC>/releases/...) -- "owner/repo" isn't accepted
+# there directly the way it is with -R elsewhere.
 GLAB_REPO_ENC = $(subst /,%2F,$(GLAB_REPO))
 
-.PHONY: single setup dist release update retag re-release check-clean clean install
+.PHONY: single setup dist release update retag re-release publish check-clean clean install
 
-# rebuild.cmd's "single" target -- stand-alone self-extracting exe.
-# (The old "build" target -- loose-file publish -- is gone: PrettyReMark.iss
-# only ever pulled the single exe out of publish\, never the loose-file layout,
-# so there was nothing depending on it.)
-#
+# Self-contained single-exe build.
 single:
 	rm -rf bin obj
 	dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -p:Version=$(VERSION)
 
-# Compile the installer. VERSION is passed to Inno Setup on the command line
-# instead of being hardcoded in PrettyReMark.iss. Depends on "single" so a bare
-# "make setup" (or "make dist"/"release"/"update") always packages a fresh build.
+# Builds the installer. Depends on "single" so setup/dist/release/update always
+# package a fresh build.
 setup: single
 	rm -rf Output
 	iscc /DMyAppVersion=$(VERSION) /Q PrettyReMark.iss
@@ -50,13 +35,9 @@ setup: single
 dist: setup
 	zip -j $(SETUP_ZIP) $(SETUP_EXE)
 
-# Refuses to proceed if the working tree has uncommitted or untracked changes
-# -- the exact mistake that prompted this target: a release built from a
-# working tree that doesn't match what "git tag" is about to point at.
-# A prerequisite of "release" and "retag" (not "dist"/"setup"/"single" --
-# those are also used standalone for local testing, where an uncommitted
-# tree is completely normal) so it runs, and can fail, BEFORE the expensive
-# rebuild -- "release: check-clean dist" checks first, builds second.
+# Blocks release/retag/publish on an unclean working tree -- catches building
+# from a tree that doesn't match what the tag is about to point at. Runs
+# before the expensive rebuild.
 check-clean:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "ERROR: uncommitted changes present -- commit before releasing."; \
@@ -64,8 +45,8 @@ check-clean:
 		exit 1; \
 	fi
 
-# Tag, push, and publish a new GitLab release with the installer attached and
-# release notes sliced out of the current CHANGELOG.md entry.
+# First-time release: tag, push, create the GitLab release with notes sliced
+# from CHANGELOG.md.
 release: check-clean dist
 	@echo Preparing GitLab release $(TAG)...
 	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
@@ -75,45 +56,12 @@ release: check-clean dist
 	rm temp_notes.md
 	@echo Release $(TAG) uploaded to GitLab!
 
-# Re-upload the installer to an existing release (e.g. after a rebuild), without
-# re-tagging. Only correct when $(TAG) already points at the commit you actually
-# want released -- e.g. a flaky build, or you deleted Output\ and need to
-# regenerate/reattach the same artifact. If the source has changed since the
-# tag was created, use "re-release" below instead -- this target will happily
-# upload a binary that no longer matches what git says $(TAG) is.
-#
-# NOTE: unlike "gh release upload", "glab release upload" has no --clobber
-# flag -- CONFIRMED (2026-09) it does NOT overwrite a same-named asset, it
-# errors: "Name has already been taken, Filepath has already been taken."
-# This bites every time this target is re-run against a version whose
-# assets were already uploaded once -- the "do a release, then immediately
-# spot something to fix" case -- since a link with that name already
-# exists on $(TAG). glab has no per-asset delete subcommand (only
-# "glab release delete <tag>", which removes the whole release), so
-# instead this target looks up any existing link matching this build's
-# filename via "glab api" and deletes it first, before uploading. That
-# makes "update" (and therefore "re-release") idempotent -- safe to run
-# as many times as needed against the same tag. Requires jq (winget
-# install jqlang.jq) to pick the matching link's id out of the
-# link-listing JSON. The "tr -d '\r'" is required because "glab api" is a
-# native Windows binary and emits CRLF line endings; $(...) command
-# substitution only strips the capture's *trailing* newline, not the \r
-# embedded before each internal line, so without this each $$id comes out
-# as e.g. "13074777\r" and glab's own request-building chokes on the
-# stray \r in the URL ("invalid control character in URL").
-#
-# Also re-slices CHANGELOG.md and pushes it as the release notes, same as
-# "release" does on first publish. Without this, editing CHANGELOG.md's
-# current-version section AFTER the initial "release" (the "one more
-# thing" case this whole target exists for) would leave GitLab's notes
-# field stale forever, even though the committed CHANGELOG.md is current
-# -- "update" would fix the binary but silently leave the notes behind.
-# There's no separate "glab release update" subcommand; "glab release
-# create" doubles as update when the tag already exists (confirmed via
-# glab's own docs: "Create a new GitLab release ... or update an existing
-# one"), touching only what's passed -- so calling it again with just
-# --notes-file, no asset argument, updates notes without disturbing the
-# asset link just uploaded above.
+# Re-uploads the installer + notes to an EXISTING release (tag unchanged).
+# Requires a release to already exist for $(TAG) -- see "publish" below if
+# it doesn't. glab has no upload --clobber (re-uploading a same-named asset
+# errors), so any stale link with this filename is looked up and deleted
+# first, via glab api + jq. "tr -d '\r'" strips the CRLF glab emits on
+# Windows, which otherwise breaks the id substitution.
 update: dist
 	@echo Updating assets for existing release $(TAG)...
 	@for id in $$(glab api "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links" \
@@ -127,20 +75,11 @@ update: dist
 	rm temp_notes.md
 	@echo Release $(TAG) assets and notes updated on GitLab!
 
-# Recovery for "I ran release, then realized uncommitted changes were left out
-# out" -- force-moves $(TAG) to the current commit and force-pushes that
-# move, then rebuilds and re-uploads via "update" so the release's binary
-# matches where the tag now points. Safe for a solo repo (nobody else has
-# based work on the old tag position); on a shared repo, force-pushing a
-# moved tag out from under a collaborator who already fetched it is the
-# kind of thing worth a heads-up first.
-#
-# Deliberately separate from "release" itself, which still uses a bare
-# "git tag" (no -f) as a guard rail -- re-running "release" on an
-# already-tagged version should fail loudly, not silently move the tag.
-# Reach for "retag"/"re-release" only when you actually mean to. Also
-# depends on check-clean, for the same reason "release" does -- retagging
-# onto a dirty tree just relocates the exact mistake this is meant to fix.
+# Recovery for "released with pending changes left out of the tag": force-
+# moves $(TAG) to HEAD and re-pushes, then "update" re-releases against it.
+# Solo-repo only -- force-pushing a moved tag is unsafe if anyone else has
+# already fetched it. Deliberately separate from "release", which uses a
+# bare (non -f) "git tag" as a guard rail.
 retag: check-clean
 	git tag -f $(TAG)
 	git push origin $(TAG) --force
@@ -148,47 +87,48 @@ retag: check-clean
 re-release: retag update
 	@echo Release $(TAG) retagged and re-released.
 
+# Recovery for "the tag is already pushed, but no GitLab release was ever
+# created for it" -- e.g. running re-release/update before "release" was
+# ever run once. Skips tagging (the tag's already right) and just builds +
+# creates the release against it. Refuses if HEAD doesn't match $(TAG); use
+# retag/re-release instead in that case.
+publish: check-clean dist
+	@if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse $(TAG)^{})" ]; then \
+		echo "ERROR: HEAD doesn't match tag $(TAG) -- use retag/re-release instead."; \
+		exit 1; \
+	fi
+	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
+	glab release create $(TAG) $(SETUP_ZIP) --notes-file temp_notes.md -R $(GLAB_REPO)
+	rm temp_notes.md
+	@echo Release $(TAG) created on GitLab from existing tag!
+
 clean:
 	rm -rf bin obj Output
 
-# new target for silent install from base folder
+# Silent install from base folder.
 install:
 	$(SETUP_EXE) /SILENT /SUPPRESSMSGBOXES /NORESTART
-	
+
 sha256:
 	certutil -hashfile $(SETUP_ZIP) SHA256
 
 # --- Static analysis / linting ------------------------------------------
-# Four tools cover the whole codebase: Roslynator (C#), vnu.jar (the Nu Html
-# Checker, for the WebView2 HTML), stylelint (CSS), and eslint (JS, pulled
-# out of index.html via eslint-plugin-html). Each gets its own target so any
-# one can be run standalone; "lint" runs all four and leaves each tool's raw
-# output under reports\.
+# Roslynator (C#), vnu.jar (HTML), stylelint (CSS), eslint (JS, via
+# eslint-plugin-html on index.html). Each has its own target; "lint" runs
+# all four, output goes to reports\. Nonzero exit = issues found, not a
+# make failure -- lint-cs ignores it (roslynator's own report is clear
+# either way); lint-html/css/js capture it and print/log a pass/fail line,
+# since those three are otherwise silent on a clean run (replaces the old
+# lint-all.ps1, which existed only to work around make aborting on this).
 #
-# These tools exit nonzero when they find issues, which is the normal/
-# expected case, not a make failure. lint-cs is prefixed with "-" to keep
-# going regardless (roslynator's own report makes the outcome clear either
-# way). lint-html/css/js instead capture the exit status themselves, append
-# an explicit "no issues found" / "issues found" line to their report, AND
-# echo that same line to the console -- those three tools are silent on a
-# clean run, and silent isn't just ambiguous, it also hides a genuine setup
-# failure (missing config, missing plugin) behind what looks like a clean
-# pass. This replaces the old lint-all.ps1, which existed only to work
-# around make aborting on a nonzero exit.
-#
-# One-time setup (per machine, not per build):
+# One-time setup (per machine):
 #   - roslynator: dotnet tool install -g roslynator.dotnet.cli
-#   - vnu.jar: download and point VNU_JAR below at it (shared tools\ folder,
-#     not per-project -- see build_tools.md)
+#   - vnu.jar: see build_tools.md, point VNU_JAR below at it
 #   - node + npm install -g eslint eslint-plugin-html stylelint stylelint-config-standard
-#   - .stylelintrc.json in this repo's root, extending stylelint-config-standard
-#     (stylelint exits 78 immediately with no config file present)
-#   - eslint.config.js in this repo's root registering eslint-plugin-html
-#     for *.html -- under ESLint 9/10 flat config, a bare "--plugin html"
-#     CLI flag does nothing (that only worked pre-flat-config); the plugin
-#     has to be imported and registered in eslint.config.js itself. Both
-#     files are provided alongside this Makefile -- drop them in the repo
-#     root as-is.
+#   - .stylelintrc.json + eslint.config.js in repo root (provided alongside
+#     this Makefile) -- eslint-plugin-html must be registered in
+#     eslint.config.js itself; a bare --plugin flag doesn't work under
+#     ESLint's flat config.
 
 VNU_JAR = ../tools/vnu.jar
 
