@@ -65,7 +65,7 @@ release: check-clean dist
 # filename is looked up and deleted first, via glab api + jq. "tr -d '\r'"
 # strips the CRLF glab emits on Windows, which otherwise breaks the id
 # substitution.
-update: dist
+update: check-clean dist
 	@echo Updating release $(TAG)...
 	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
 	glab release create $(TAG) --notes-file temp_notes.md -R $(GLAB_REPO)
