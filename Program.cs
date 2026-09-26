@@ -245,6 +245,13 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
+        // Makes Windows-1252 available to Encoding.GetEncoding(1252). .NET (Core) only ships
+        // the Unicode encodings by default; the legacy Windows code pages come from this
+        // provider, which is part of the shared framework (no extra NuGet package needed) but
+        // must be registered once per process. MainForm.ReadFile() below depends on it as its
+        // fallback for files that aren't valid UTF-8.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
         string filePath = args.Length > 0 ? Path.GetFullPath(args[0]) : null;
         if (filePath != null && !File.Exists(filePath))
         {
@@ -1014,10 +1021,72 @@ partial class MainForm : Form
         Text = tab != null ? $"{tab.FileName} \u2014 {name}" : name;
     }
 
+    // Strict UTF-8: unlike Encoding.UTF8 (which silently swaps each invalid byte for U+FFFD,
+    // the "diamond with a question mark"), this instance THROWS DecoderFallbackException on
+    // any invalid sequence. That exception is how ReadFile() below detects "not UTF-8".
+    private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+
+    // Reads a text file and returns its contents as a string, choosing the encoding by
+    // inspecting the raw bytes. Decision order:
+    //   1. A byte-order mark (UTF-8, UTF-16 LE/BE, UTF-32 LE/BE) -> use that encoding, and
+    //      skip the BOM itself so it doesn't show up as an invisible U+FEFF at the top.
+    //   2. No BOM: try strict UTF-8. Succeeds for all valid UTF-8, including pure ASCII.
+    //   3. Strict UTF-8 fails: fall back to Windows-1252. This is what an editor set to
+    //      "Western European (Windows)" / "ANSI" writes, where an em dash is the single
+    //      byte 0x97 -- not valid UTF-8, so it used to render as U+FFFD.
+    //
+    // The old version's Latin-1 fallback never actually ran (ReadAllText with UTF-8 doesn't
+    // throw on bad bytes), and Latin-1 would have been wrong anyway: it maps 0x80-0x9F to
+    // invisible control characters, where Windows-1252 has the curly quotes, dashes, etc.
+    //
+    // WHAT COULD GO WRONG (none of it can damage a file -- PrettyReMark only ever reads):
+    //   - All-or-nothing fallback: a mostly-UTF-8 file containing even ONE invalid byte
+    //     (e.g. a corrupted paste) fails step 2, so the WHOLE file is read as Windows-1252 and
+    //     every real em dash shows as "â€”" instead. Visible and obvious; fix is to re-save
+    //     the file as UTF-8.
+    //   - Mid-write reads: the file watcher can fire while an editor is still writing, and a
+    //     multi-byte character can be cut in half -> fallback -> brief mojibake for that one
+    //     render. Another change event normally follows when the write completes (the 300ms
+    //     debounce in OnFileChanged also helps), so it self-corrects.
+    //   - Legacy text that is coincidentally valid UTF-8 (e.g. "Ã©" in a Windows-1252 file)
+    //     will be decoded as UTF-8. Essentially never happens with real prose.
+    //   - Windows-1252 leaves 0x81, 0x8D, 0x8F, 0x90 and 0x9D undefined; .NET maps them to
+    //     invisible control characters rather than throwing. Very rare in real text.
+    //   - Any other legacy code page (Cyrillic, Greek, etc.) is not detected and will be
+    //     decoded as Windows-1252, i.e. as wrong-but-readable Western European text.
+    //   - File.ReadAllBytes still throws IOException if a writer holds the file locked at
+    //     that moment (same as before this change); the callers are async void, so it shows
+    //     up as an unhandled exception rather than a graceful retry.
+    //   - Requires Encoding.RegisterProvider(CodePagesEncodingProvider.Instance) to have run
+    //     (done in Main); otherwise GetEncoding(1252) throws NotSupportedException.
     private static string ReadFile(string path)
     {
-        try { return File.ReadAllText(path, Encoding.UTF8); }
-        catch { return File.ReadAllText(path, Encoding.Latin1); }
+        byte[] bytes = File.ReadAllBytes(path);
+
+        // BOM checks. UTF-32 LE (FF FE 00 00) must be tested before UTF-16 LE (FF FE),
+        // since the latter is a prefix of the former.
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
+            return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+        }
+        if (bytes.Length >= 4 && bytes[0] == 0xFF && bytes[1] == 0xFE && bytes[2] == 0x00 && bytes[3] == 0x00) {
+            return Encoding.UTF32.GetString(bytes, 4, bytes.Length - 4);
+        }
+        if (bytes.Length >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0xFE && bytes[3] == 0xFF) {
+            return new UTF32Encoding(true, false).GetString(bytes, 4, bytes.Length - 4);
+        }
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
+            return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+        }
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
+            return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
+        }
+
+        try {
+            return StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException) {
+            return Encoding.GetEncoding(1252).GetString(bytes);
+        }
     }
 
     private void OpenFile()

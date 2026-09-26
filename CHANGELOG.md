@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.18] - 2026-09-26
+- add tweak to fix incorrect Unicode "Em-dash" characters
+
 ## [1.17] - 2026-09-23
 - Files in sidebar can now be drag-and-dropped to new positions in the list
 - Tab bar is re-positioned to show the current active file
