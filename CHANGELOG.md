@@ -1,5 +1,11 @@
 # PrettyReMark Changelog
 
+## [1.19] - 2026-10-02
+- In-page #anchor links now work, so table-of-contents links jump to their sections. Headings get GitHub-style ids.
+- New Back button (↩) in the status bar returns you to where you were before the last link jump; clicking it again bounces forward. Alt+Left does the same. Any manual scroll disarms it.
+- The zoom slider now has a tooltip.
+- The status bar is larger and uses the sidebar colors.
+
 ## [1.18] - 2026-09-26
 - add tweak to fix incorrect Unicode "Em-dash" characters
 
@@ -16,7 +22,7 @@
 
 ## [1.14] - 2026-09-18
 - Fixed: find/F3 navigation not scrolling to matches (broken by CSS zoom on #content-area) 
-- Fixed: find not reaching matches inside collapsed [details] sections (now auto-expanded on jump, matching native find-in-page behavior).
+- Fixed: find not **reaching** matches inside collapsed [details] sections (now auto-expanded on jump, matching native find-in-page behavior).
 - Fixed: unlabeled fenced blocks getting syntax highlighting
 
 ## [1.13] - 2026-09-16

@@ -146,14 +146,16 @@ body.dark .tab-close:hover { background: #30363d; }
 
 /* Status bar */
 #status-bar {
-    display: flex; align-items: center; height: 26px; min-height: 26px;
-    padding: 0 10px; font-size: 11px; color: #656d76;
+    display: flex; align-items: center; height: 30px; min-height: 30px;
+    padding: 0 10px; font-size: 12px; color: #656d76;
     background: #f6f8fa; border-top: 1px solid #d1d9e0; flex-shrink: 0;
     gap: 10px;
 }
 body.dark #status-bar { background: #161b22; border-top-color: #30363d; color: #8b949e; }
 
 #zoom-control { display: flex; align-items: center; gap: 6px; }
+/* The - and + are bigger than the surrounding 12px text so they're easy to see and hit. */
+#zoom-control span[onclick] { font-size: 16px; line-height: 1; padding: 0 2px; }
 #zoom-slider {
     -webkit-appearance: none; appearance: none; width: 100px; height: 4px;
     background: #d1d9e0; border-radius: 2px; outline: none; cursor: pointer;
@@ -167,6 +169,17 @@ body.dark #zoom-slider::-webkit-slider-thumb { background: #8b949e; }
 #zoom-label { min-width: 32px; text-align: center; }
 
 #status-info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* "Back" button: returns to the scroll position held before the last in-page link jump (see
+   returnBack() in the script). Greyed out whenever there's nothing to return to. */
+#back-button {
+    flex-shrink: 0; background: none; border: 1px solid transparent; border-radius: 4px;
+    padding: 0 6px; font-size: 20px; line-height: 22px; color: #656d76; cursor: pointer;
+}
+#back-button:hover:not(:disabled) { background: #e8ebef; border-color: #d1d9e0; color: #1f2328; }
+#back-button:disabled { opacity: 0.5; cursor: default; }
+body.dark #back-button { color: #8b949e; }
+body.dark #back-button:hover:not(:disabled) { background: #1c2129; border-color: #30363d; color: #f0f6fc; }
 
 /* Find bar */
 #find-bar {
@@ -229,9 +242,10 @@ body.dark mark.find-match.current { background: #b35c44; }
         </div>
         <div id="status-bar">
             <div id="status-info"></div>
+            <button id="back-button" onclick="returnBack()" disabled title="Back to previous position (Alt+Left)">&#8617;</button>
             <div id="zoom-control">
                 <span style="cursor:pointer;" onclick="zoomOut()" title="Zoom out">&#x2212;</span>
-                <input type="range" id="zoom-slider" min="50" max="200" value="100" step="10" oninput="setZoomFromSlider(this.value)">
+                <input type="range" id="zoom-slider" title="Zoom the view" min="50" max="200" value="100" step="10" oninput="setZoomFromSlider(this.value)">
                 <span style="cursor:pointer;" onclick="zoomIn()" title="Zoom in">+</span>
                 <span id="zoom-label">100%</span>
             </div>
@@ -339,6 +353,22 @@ function _applyColorOverrides() {
     if (theme.SidebarPathColor) rules += scope + '.tab{color:' + theme.SidebarPathColor + ';}';
     if (theme.SidebarFilenameColor) rules += scope + '.tab.active{color:' + theme.SidebarFilenameColor + ';}';
 
+    // Status bar (bottom strip: file info, Back button, zoom control) is likewise aliased onto
+    // the sidebar fields rather than getting colors of its own, and mirrors the tab bar just
+    // above it: background <- Sidebar Background; everything that isn't "selected" (status text,
+    // Back button, zoom -/+ and percentage, and the slider track -- a half-strength version of
+    // that color so it shows against the background) <- Sidebar File Path, same as UNSELECTED
+    // tabs; only the slider's thumb (the draggable "selector button") <- Sidebar Filename, same
+    // as the SELECTED tab. Same "body.dark " scoping applies, since the dark-mode base rules for
+    // these are written that way.
+    if (theme.SidebarBackgroundColor) rules += scope + '#status-bar{background:' + theme.SidebarBackgroundColor + ';}';
+    if (theme.SidebarPathColor) {
+        rules += scope + '#status-bar{color:' + theme.SidebarPathColor + ';}';
+        rules += scope + '#back-button{color:' + theme.SidebarPathColor + ';}';
+        rules += scope + '#zoom-slider{background:color-mix(in srgb,' + theme.SidebarPathColor + ' 50%,transparent);}';
+    }
+    if (theme.SidebarFilenameColor) rules += scope + '#zoom-slider::-webkit-slider-thumb{background:' + theme.SidebarFilenameColor + ';}';
+
     el.textContent = rules;
 }
 
@@ -363,7 +393,14 @@ function _applyStrings() {
     var fc = document.getElementById('find-close');
     if (fc) fc.title = T('find_close_tooltip');
 
+    // Back button tooltip. Falls back to English (rather than showing the bare key) until a
+    // "tooltip_back" entry exists in lang/*.json.
+    var bb = document.getElementById('back-button');
+    if (bb) bb.title = _strings['tooltip_back'] || 'Back to previous position (Alt+Left)';
+
     // Zoom tooltips
+    var zSlider = document.getElementById('zoom-slider');
+    if (zSlider) zSlider.title = _strings['tooltip_zoom_slider'] || 'Zoom the view';
     var zOutSpan = document.querySelector('#zoom-control span[onclick="zoomOut()"]');
     if (zOutSpan) zOutSpan.title = T('tooltip_zoom_out');
     var zInSpan = document.querySelector('#zoom-control span[onclick="zoomIn()"]');
@@ -409,11 +446,16 @@ var _purifyConfig = {
 // tab-map entry to restore from.
 function render(md, restoreTabScroll) {
     if (restoreTabScroll === undefined) restoreTabScroll = true;
+    // Replacing the content can make the browser clamp scrollTop and fire scroll events of its
+    // own; none of that is the reader scrolling, so keep it from greying out the Back button.
+    // Balanced by _endProgScroll() at the end of the animation-frame callback below.
+    _beginProgScroll();
     _el.style.cssText = '';
     _el.innerHTML = DOMPurify.sanitize(marked.parse(md), _purifyConfig);
     document.querySelectorAll('pre code').forEach(function(block) {
         hljs.highlightElement(block);
     });
+    _assignHeadingIds();
     _resolveLocalImages();
     var contentArea = document.getElementById('content-area');
     var target = restoreTabScroll ? (_scrollPositions[_activeTabId] || 0) : 0;
@@ -431,6 +473,7 @@ function render(md, restoreTabScroll) {
         // the corrected value here, through the same path the debounced scroll listener uses,
         // makes this self-heal after one clamp instead of recurring indefinitely.
         if (contentArea.scrollTop !== target) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
+        _endProgScroll();
     });
 }
 
@@ -451,6 +494,10 @@ function render(md, restoreTabScroll) {
 function reloadContent(md) {
     var contentArea = document.getElementById('content-area');
     var savedScrollTop = contentArea.scrollTop;
+    // The document changed underneath the reader, so a remembered "back" position no longer
+    // points at the same text -- drop it rather than return somewhere meaningless.
+    _clearReturn();
+    _beginProgScroll();
     render(md, false);
     requestAnimationFrame(function() {
         contentArea.scrollTop = savedScrollTop;
@@ -458,7 +505,124 @@ function reloadContent(md) {
         // the case this function exists for, so a stale/clamped scrollTop is if anything more
         // likely here than on an ordinary tab switch.
         if (contentArea.scrollTop !== savedScrollTop) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
+        _endProgScroll();
     });
+}
+
+// Gives every heading a GitHub-style id ("2. Constructors and `explicit`" -> "2-constructors-and-explicit")
+// so in-page links like [text](#2-constructors-and-explicit) -- e.g. a table of contents -- have
+// something to point at. Current versions of marked.js no longer generate heading ids themselves,
+// so without this, no "#anchor" link could ever resolve. Done AFTER DOMPurify rather than via a
+// marked renderer so the ids can't be stripped or renamed by the sanitizer.
+//
+// The slug rules mirror GitHub's: lowercase, drop everything except letters/digits/spaces/
+// hyphens/underscores, then turn each space into a hyphen (so "a: b" becomes "a-b", and
+// "= default" with its punctuation dropped leaves a double hyphen, exactly as GitHub does).
+// Duplicate headings get "-1", "-2", ... suffixes, again like GitHub. An id already present
+// (hand-written HTML) is left alone, but still reserved so generated ids can't collide with it.
+function _assignHeadingIds() {
+    var used = {};
+    var headings = _el.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    headings.forEach(function(h) {
+        if (h.id) { used[h.id] = true; }
+    });
+    headings.forEach(function(h) {
+        if (h.id) { return; }
+        var slug = h.textContent.trim().toLowerCase()
+            .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+            .replace(/\s/g, '-');
+        var id = slug;
+        var n = 1;
+        while (used[id]) {
+            id = slug + '-' + n;
+            n++;
+        }
+        used[id] = true;
+        h.id = id;
+    });
+}
+
+// Scrolls the document to the element whose id matches `rawId` (the part after the '#').
+// Returns true if found. Lookup is limited to the rendered document (_el) so a link can't
+// land on one of PrettyReMark's own UI elements, and it iterates rather than building a
+// CSS selector, since ids like "3-special-members--default..." can start with a digit.
+// Scrolling is computed by hand for the same CSS-zoom reason given at _scrollMatchIntoView().
+function _scrollToAnchor(rawId) {
+    var id = rawId;
+    try { id = decodeURIComponent(rawId); } catch (ex) { /* use as written */ }
+    var target = null;
+    var candidates = _el.querySelectorAll('[id]');
+    for (var i = 0; i < candidates.length; i++) {
+        if (candidates[i].id === id) {
+            target = candidates[i];
+            break;
+        }
+    }
+    if (!target) { return false; }
+    _revealMatch(target);
+    var container = document.getElementById('content-area');
+    var before = container.scrollTop;
+    var delta = target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    _beginProgScroll();
+    container.scrollTo({ top: before + delta });
+    _endProgScroll();
+
+    // Remember where we jumped FROM so the Back button can return there. Only if the jump
+    // actually moved the view (a link to the section already at the top shouldn't arm Back).
+    // scrollTop reads back the clamped, post-scroll value immediately.
+    if (Math.abs(container.scrollTop - before) >= 1) {
+        _returnPos[_activeTabId] = before;
+        _updateBackButton();
+    }
+    return true;
+}
+
+// --- Back button (return to pre-jump position) ---
+// One remembered position per tab, set only by an in-page link jump (_scrollToAnchor above).
+// Using Back swaps: the slot then holds the position you just left, so a second click bounces
+// forward again. Any scroll by the reader (wheel, scroll bar, PageUp/PageDown, arrows...)
+// clears the slot and greys the button out. In memory only -- not persisted across sessions.
+var _returnPos = {};      // tab id -> scrollTop to return to
+var _progScrollCount = 0; // >0 while WE are scrolling, so the scroll listener can tell us apart from the reader
+
+// Brackets a stretch of programmatic scrolling. Scroll events are delivered asynchronously
+// (during the next frame), so the "ours" flag is held until two animation frames have passed.
+function _beginProgScroll() {
+    _progScrollCount++;
+}
+
+function _endProgScroll() {
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            if (_progScrollCount > 0) { _progScrollCount--; }
+        });
+    });
+}
+
+// Enables/disables the button to match the ACTIVE tab's slot.
+function _updateBackButton() {
+    var btn = document.getElementById('back-button');
+    if (btn) { btn.disabled = !(_activeTabId && (_activeTabId in _returnPos)); }
+}
+
+function _clearReturn() {
+    if (_activeTabId && (_activeTabId in _returnPos)) {
+        delete _returnPos[_activeTabId];
+    }
+    _updateBackButton();
+}
+
+// Swaps the current scroll position with the remembered one.
+function returnBack() {
+    if (!_activeTabId || !(_activeTabId in _returnPos)) { return; }
+    var container = document.getElementById('content-area');
+    var current = container.scrollTop;
+    var dest = _returnPos[_activeTabId];
+    _beginProgScroll();
+    container.scrollTo({ top: dest });
+    _endProgScroll();
+    _returnPos[_activeTabId] = current;
+    _updateBackButton();
 }
 
 // Relative image paths get resolved by the browser against https://app.local/index.html
@@ -664,6 +828,7 @@ function activateTab(id) {
     }
     _activeTabId = id;
     _activeTabDir = _tabDirs[id] || null;
+    _updateBackButton();   // each tab has its own return slot
     // Tab bar
     document.querySelectorAll('#tab-bar .tab').forEach(function(t) {
         t.classList.toggle('active', t.dataset.id === id);
@@ -687,6 +852,7 @@ function _scrollActiveTabIntoView() {
 function removeTab(id) {
     delete _tabDirs[id];
     delete _scrollPositions[id];
+    delete _returnPos[id];
     var tab = document.querySelector('#tab-bar .tab[data-id="' + id + '"]');
     if (tab) tab.remove();
     var item = document.querySelector('#drawer-list .drawer-item[data-id="' + id + '"]');
@@ -763,6 +929,9 @@ function _persistScrollPosition(id, scrollTop) {
 // scroll-fling would otherwise fire dozens of redundant saves for one motion.
 var _scrollSaveTimer = null;
 document.getElementById('content-area').addEventListener('scroll', function() {
+    // A scroll we didn't cause is the reader moving around by hand, which ends the "return to
+    // where I jumped from" state (see the Back button section above).
+    if (_progScrollCount === 0) { _clearReturn(); }
     if (_scrollSaveTimer) clearTimeout(_scrollSaveTimer);
     _scrollSaveTimer = setTimeout(function() {
         if (!_activeTabId) return;
@@ -817,7 +986,16 @@ document.addEventListener('click', function(e) {
     var a = e.target.closest('a[href]');
     if (!a) return;
     var raw = a.getAttribute('href');
-    if (!raw || raw.charAt(0) === '#') return;   // in-page anchor — let the browser scroll to it natively
+    if (!raw) return;
+    if (raw.charAt(0) === '#') {
+        // In-page anchor. We scroll it ourselves rather than letting the browser do it natively:
+        // a native fragment navigation fires NavigationStarting in Program.cs, which cancels
+        // everything except the initial page load -- so the jump never happened. A bare "#" (or
+        // an id that doesn't exist) is simply ignored.
+        e.preventDefault();
+        if (raw.length > 1) _scrollToAnchor(raw.substring(1));
+        return;
+    }
     if (/^mailto:|^tel:/i.test(raw)) return;     // let the OS handle these as usual
 
     e.preventDefault();
@@ -1016,6 +1194,10 @@ document.addEventListener('keydown', function(e) {
     else if (e.ctrlKey && e.key === 'f') {
         e.preventDefault();
         toggleFind();
+    }
+    else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        returnBack();
     }
     else if (e.key === 'F3') {
         // Only meaningful once a search has actually been run; otherwise let it fall through
