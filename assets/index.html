@@ -446,10 +446,6 @@ var _purifyConfig = {
 // tab-map entry to restore from.
 function render(md, restoreTabScroll) {
     if (restoreTabScroll === undefined) restoreTabScroll = true;
-    // Replacing the content can make the browser clamp scrollTop and fire scroll events of its
-    // own; none of that is the reader scrolling, so keep it from greying out the Back button.
-    // Balanced by _endProgScroll() at the end of the animation-frame callback below.
-    _beginProgScroll();
     _el.style.cssText = '';
     _el.innerHTML = DOMPurify.sanitize(marked.parse(md), _purifyConfig);
     document.querySelectorAll('pre code').forEach(function(block) {
@@ -473,7 +469,6 @@ function render(md, restoreTabScroll) {
         // the corrected value here, through the same path the debounced scroll listener uses,
         // makes this self-heal after one clamp instead of recurring indefinitely.
         if (contentArea.scrollTop !== target) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
-        _endProgScroll();
     });
 }
 
@@ -497,7 +492,6 @@ function reloadContent(md) {
     // The document changed underneath the reader, so a remembered "back" position no longer
     // points at the same text -- drop it rather than return somewhere meaningless.
     _clearReturn();
-    _beginProgScroll();
     render(md, false);
     requestAnimationFrame(function() {
         contentArea.scrollTop = savedScrollTop;
@@ -505,7 +499,6 @@ function reloadContent(md) {
         // the case this function exists for, so a stale/clamped scrollTop is if anything more
         // likely here than on an ordinary tab switch.
         if (contentArea.scrollTop !== savedScrollTop) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
-        _endProgScroll();
     });
 }
 
@@ -563,9 +556,7 @@ function _scrollToAnchor(rawId) {
     var container = document.getElementById('content-area');
     var before = container.scrollTop;
     var delta = target.getBoundingClientRect().top - container.getBoundingClientRect().top;
-    _beginProgScroll();
     container.scrollTo({ top: before + delta });
-    _endProgScroll();
 
     // Remember where we jumped FROM so the Back button can return there. Only if the jump
     // actually moved the view (a link to the section already at the top shouldn't arm Back).
@@ -578,26 +569,16 @@ function _scrollToAnchor(rawId) {
 }
 
 // --- Back button (return to pre-jump position) ---
-// One remembered position per tab, set only by an in-page link jump (_scrollToAnchor above).
-// Using Back swaps: the slot then holds the position you just left, so a second click bounces
-// forward again. Any scroll by the reader (wheel, scroll bar, PageUp/PageDown, arrows...)
-// clears the slot and greys the button out. In memory only -- not persisted across sessions.
+// One remembered position (typically the table of contents) per tab, set only by an in-page
+// link jump (_scrollToAnchor above). Reading the topic you jumped to -- scrolling, PageUp/
+// PageDown, dragging the scroll bar -- deliberately does NOT affect it, since a topic is often
+// longer than one screen and you still want to get back to where you came from afterward.
+// The slot is cleared (and the button greys out) only when:
+//   - Back is used (one-shot: you're back where you started, so there's nothing left to return to),
+//   - you switch to another document (see activateTab), or
+//   - the document is reloaded from disk (see reloadContent).
+// A later link jump simply overwrites the slot. In memory only -- not persisted across sessions.
 var _returnPos = {};      // tab id -> scrollTop to return to
-var _progScrollCount = 0; // >0 while WE are scrolling, so the scroll listener can tell us apart from the reader
-
-// Brackets a stretch of programmatic scrolling. Scroll events are delivered asynchronously
-// (during the next frame), so the "ours" flag is held until two animation frames have passed.
-function _beginProgScroll() {
-    _progScrollCount++;
-}
-
-function _endProgScroll() {
-    requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-            if (_progScrollCount > 0) { _progScrollCount--; }
-        });
-    });
-}
 
 // Enables/disables the button to match the ACTIVE tab's slot.
 function _updateBackButton() {
@@ -612,17 +593,13 @@ function _clearReturn() {
     _updateBackButton();
 }
 
-// Swaps the current scroll position with the remembered one.
+// Returns to the remembered position, then clears it (the button greys out again).
 function returnBack() {
     if (!_activeTabId || !(_activeTabId in _returnPos)) { return; }
     var container = document.getElementById('content-area');
-    var current = container.scrollTop;
     var dest = _returnPos[_activeTabId];
-    _beginProgScroll();
+    _clearReturn();
     container.scrollTo({ top: dest });
-    _endProgScroll();
-    _returnPos[_activeTabId] = current;
-    _updateBackButton();
 }
 
 // Relative image paths get resolved by the browser against https://app.local/index.html
@@ -826,9 +803,13 @@ function activateTab(id) {
     if (_activeTabId && _activeTabId in _tabDirs) {
         _persistScrollPosition(_activeTabId, document.getElementById('content-area').scrollTop);
     }
+    // Leaving a document forgets its Back position (see the Back button section above); done
+    // before _activeTabId changes, since _clearReturn() acts on the active tab. Skipped when
+    // re-activating the tab that's already showing, which isn't a switch.
+    if (id !== _activeTabId) { _clearReturn(); }
     _activeTabId = id;
     _activeTabDir = _tabDirs[id] || null;
-    _updateBackButton();   // each tab has its own return slot
+    _updateBackButton();
     // Tab bar
     document.querySelectorAll('#tab-bar .tab').forEach(function(t) {
         t.classList.toggle('active', t.dataset.id === id);
@@ -929,9 +910,6 @@ function _persistScrollPosition(id, scrollTop) {
 // scroll-fling would otherwise fire dozens of redundant saves for one motion.
 var _scrollSaveTimer = null;
 document.getElementById('content-area').addEventListener('scroll', function() {
-    // A scroll we didn't cause is the reader moving around by hand, which ends the "return to
-    // where I jumped from" state (see the Back button section above).
-    if (_progScrollCount === 0) { _clearReturn(); }
     if (_scrollSaveTimer) clearTimeout(_scrollSaveTimer);
     _scrollSaveTimer = setTimeout(function() {
         if (!_activeTabId) return;

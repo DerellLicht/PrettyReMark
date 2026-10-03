@@ -1,10 +1,11 @@
 # PrettyReMark Changelog
 
-## [1.19] - 2026-10-02
+## [1.19] - 2026-10-03
 - In-page #anchor links now work, so table-of-contents links jump to their sections. Headings get GitHub-style ids.
 - New Back button (↩) in the status bar returns you to where you were before the last link jump; clicking it again bounces forward. Alt+Left does the same. Any manual scroll disarms it.
 - The zoom slider now has a tooltip.
 - The status bar is larger and uses the sidebar colors.
+- Back button no longer resets (i.e., disables) after scrolling at destination
 
 ## [1.18] - 2026-09-26
 - add tweak to fix incorrect Unicode "Em-dash" characters
