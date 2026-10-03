@@ -2,7 +2,7 @@
 
 ## [1.19] - 2026-10-03
 - In-page #anchor links now work, so table-of-contents links jump to their sections. Headings get GitHub-style ids.
-- New Back button (↩) in the status bar returns you to where you were before the last link jump; clicking it again bounces forward. Alt+Left does the same. Any manual scroll disarms it.
+- New Back button (↩) in the status bar returns you to where you were before the last link jump; clicking it again bounces forward. Alt+Left does the same. 
 - The zoom slider now has a tooltip.
 - The status bar is larger and uses the sidebar colors.
 - Back button no longer resets (i.e., disables) after scrolling at destination
@@ -38,12 +38,12 @@
 - added option to enable/disable tabs, default: disable
 - modified `settings.json` to have each element on a separate line
 - modify Makefile to allow recovery from release with pending commits
-- modify Makefile to block `release` with pending commits
+- modify Makefile to block `release` and `update` with pending commits
 
 ## [1.10] - 2026-09-10
 - deal with `mailto:` links
 - Make a global change to hand *all* unknown extensions to Windows' handlers
-- try to get program to pop to top of window stack when loading a new `.md` file
+- set program to pop to top of window stack when loading a new `.md` file
 
 ## [1.09] - 2026-09-09
 - Add tooltips to sidebar entries 
@@ -70,7 +70,7 @@
 
 ## [1.03] - 2026-09-07
 - Implement Options dialog and menu link
-- Make program recall current file position in *each* file, across document changes 
+- Make program recall current display position in *each* file, across document changes 
   as well as program restarts.
 
 ## [1.02] - 2026-09-07
@@ -80,7 +80,7 @@
 
 ## [1.01] - 2026-09-07
 - forked project into my workspace
-- added fix for opening images and html files in appropriate programs
+- added fix for displaying inline images and opening html files in appropriate programs
 - added `rebuild.cmd` script to rebuild the project
 
 ## [1.00] - 2026-03-07
