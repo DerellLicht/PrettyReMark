@@ -21,7 +21,7 @@
       <ReadOnly>true</ReadOnly>
     </MappedFolder>
     <MappedFolder>
-      <HostFolder>D:\path\to\your\test-md-files</HostFolder>
+      <HostFolder>C:\home\cpp_notes</HostFolder>
       <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\TestDocs</SandboxFolder>
       <ReadOnly>true</ReadOnly>
     </MappedFolder>
