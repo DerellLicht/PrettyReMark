@@ -54,6 +54,9 @@ SolidCompression=yes
 WizardStyle=modern slate
 ; Lets the uninstaller warn about / clean up the file association added below.
 ChangesAssociations=yes
+; The WebView2 bootstrapper exits 0, yet Setup flagged "Need to restart Windows" after it ran
+; (sandbox test). The runtime works without a restart, so don't prompt for one.
+RestartIfNeededByRun=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -69,6 +72,12 @@ Source: "{#RepoRoot}\LICENSE.MIT.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\assets\favicon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files.
+; WebView2 Evergreen bootstrapper (~1.7 MB), embedded in setup.exe at compile time and
+; extracted to {tmp} only if the runtime is missing. (--self-contained covers .NET, not WebView2.)
+; Build-time setup: download MicrosoftEdgeWebview2Setup.exe from
+;   https://go.microsoft.com/fwlink/p/?LinkId=2124703
+; into {#RepoRoot}\redist\ -- iscc fails if it's missing.
+Source: "{#RepoRoot}\redist\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not WebView2Installed
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\favicon.ico"
@@ -79,6 +88,11 @@ Name: "{group}\License"; Filename: "{app}\LICENSE.MIT.txt"
 Name: "{group}\Readme"; Filename: "{app}\README.md"
 
 [Run]
+; Runs before the launch entry below. No skipifsilent: winget's /SILENT install must still
+; get the runtime. Non-elevated, the bootstrapper installs per-user, which is enough here.
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; \
+  StatusMsg: "Installing Microsoft WebView2 Runtime..."; \
+  Flags: waituntilterminated runhidden; Check: not WebView2Installed
 ; This runs the INSTALLED app (post-install "Launch program now" checkbox) --
 ; it has nothing to do with the installer's own filename, so it must reference
 ; {#MyAppExeName} (the #define'd app exe), not OutputBaseFilename.
@@ -94,6 +108,23 @@ Root: HKA; Subkey: "Software\Classes\PrettyReMark.md\DefaultIcon"; ValueType: st
 Root: HKA; Subkey: "Software\Classes\PrettyReMark.md\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associatemd
 
 [Code]
+const
+  // Microsoft's fixed client GUID for the Evergreen runtime; its "pv" value is the version.
+  WebView2ClientKey = 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+// True if the Evergreen runtime is installed (non-empty, non-"0.0.0.0" "pv"). Checks HKLM32
+// explicitly -- the runtime registers in the 32-bit view, and this installer runs in 64-bit
+// mode -- plus HKCU for per-user installs. Check: for both the bootstrapper's [Files] and
+// [Run] entries, so they always agree.
+function WebView2Installed: Boolean;
+var
+  Version: String;
+begin
+  Result := RegQueryStringValue(HKLM32, WebView2ClientKey, 'pv', Version)
+         or RegQueryStringValue(HKCU, WebView2ClientKey, 'pv', Version);
+  Result := Result and (Version <> '') and (Version <> '0.0.0.0');
+end;
+
 // SHChangeNotify tells Explorer to re-read file associations/icons immediately,
 // instead of leaving the .md icon/association stale until next logon.
 procedure SHChangeNotify(wEventId: Integer; uFlags: Integer; dwItem1: Integer; dwItem2: Integer);

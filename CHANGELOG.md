@@ -1,5 +1,9 @@
 # PrettyReMark Changelog
 
+## [1.20] - 2026-10-05
+- modify Inno Setup config file to handle redistributable file for WebView2
+- modify Inno Setup to *not* display the "restart" dialog after installing WebView2
+
 ## [1.19] - 2026-10-03
 - In-page #anchor links now work, so table-of-contents links jump to their sections. Headings get GitHub-style ids.
 - New Back button (↩) in the status bar returns you to where you were before the last link jump; clicking it again bounces forward. Alt+Left does the same. 

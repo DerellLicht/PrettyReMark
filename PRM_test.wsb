@@ -1,0 +1,29 @@
+<!--
+  PRM_test.wsb -- Windows Sandbox config for testing the PrettyReMark installer.
+
+  Double-click to launch a clean, disposable Windows. Only one sandbox can run
+  at a time, and closing it discards everything inside.
+
+  Output   : the repo's build output, so the setup exe is available inside the
+             sandbox without copy/paste. Read-only. "make setup" deletes and
+             recreates this folder, so build first, then launch the sandbox.
+  TestDocs : sample .md files for trying the app out. Read-only is enough for
+             opening or copying files out of it.
+
+  Test: run the setup exe from Desktop\Output with /LOG=C:\setup.log, then check
+  that the WebView2 step ran, there is no restart prompt, and the app starts.
+-->
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>D:\SourceCode\Git\PrettyReMark\Output</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\Output</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>D:\path\to\your\test-md-files</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\TestDocs</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+</Configuration>
