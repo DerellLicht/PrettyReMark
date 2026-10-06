@@ -20,6 +20,6 @@ Dependencies:
 Installers:
 - Architecture: x64
   InstallerUrl: https://gitlab.com/DerellLicht/pretty-mark/-/releases/v1.20/downloads/PrettyReMarkV1.20.setup.zip
-  InstallerSha256: b61d91f8c64d8add02b7385a6ff618e8e67fa449ba703cd0a692766187eed082
+  InstallerSha256: a675a1bf73122b2581af496cdec6cbdb7ec917cfab21fa778ac0e9c09c4073dd
 ManifestType: installer
 ManifestVersion: 1.12.0
