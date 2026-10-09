@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.21] - 2026-10-09
+- Recognize when a loaded file has been removed, and close its window
+
 ## [1.20] - 2026-10-05
 - modify Inno Setup config file to handle redistributable file for WebView2
 - modify Inno Setup to *not* display the "restart" dialog after installing WebView2

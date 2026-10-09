@@ -303,6 +303,7 @@ partial class MainForm : Form
 
     private WebView2 webView;
     private System.Timers.Timer debounceTimer;
+    private System.Timers.Timer missingCheckTimer;
     private ToolStripMenuItem darkModeItem;
     private ToolStripMenuItem drawerItem;
     private AppSettings settings;
@@ -865,12 +866,7 @@ partial class MainForm : Form
             FileName = Path.GetFileName(path)
         };
 
-        // Create watcher
-        var dir = Path.GetDirectoryName(path);
-        var file = Path.GetFileName(path);
-        tab.Watcher = new FileSystemWatcher(dir, file) { NotifyFilter = NotifyFilters.LastWrite };
-        tab.Watcher.Changed += (s, e) => OnFileChanged(tab.Id);
-        tab.Watcher.EnableRaisingEvents = true;
+        AttachWatcher(tab);
 
         tabs.Add(tab);
         activeTabId = tab.Id;
@@ -1102,6 +1098,75 @@ partial class MainForm : Form
             OpenTab(dialog.FileName);
     }
 
+    // Creates the FileSystemWatcher for a tab and wires its events. Shared by OpenTab and
+    // RestoreSession so the two can't drift apart.
+    //   Changed            -> re-render (existing behavior)
+    //   Deleted / Renamed  -> the file may be gone from where we loaded it; re-check shortly
+    //   Error              -> the watcher itself broke, which is what typically happens when the
+    //                         watched FOLDER is deleted or moved (e.g. moved to another drive);
+    //                         the per-file events above never fire in that case
+    // None of these events close anything directly -- see ScheduleMissingCheck for why.
+    private void AttachWatcher(TabInfo tab)
+    {
+        var dir = Path.GetDirectoryName(tab.FilePath);
+        var file = Path.GetFileName(tab.FilePath);
+        tab.Watcher = new FileSystemWatcher(dir, file) {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
+        };
+        tab.Watcher.Changed += (s, e) => OnFileChanged(tab.Id);
+        tab.Watcher.Deleted += (s, e) => ScheduleMissingCheck();
+        tab.Watcher.Renamed += (s, e) => ScheduleMissingCheck();
+        tab.Watcher.Error += (s, e) => ScheduleMissingCheck();
+        tab.Watcher.EnableRaisingEvents = true;
+    }
+
+    // Debounced "did a file vanish?" check, triggered by the watcher events above. The delay
+    // matters: many editors save by writing a temp file, deleting the original, and renaming
+    // the temp into place, so a Deleted event routinely fires for a file that is back a few
+    // milliseconds later. Checking File.Exists only after things settle means such a save
+    // doesn't close the tab; a file that is really gone is still gone when the timer fires.
+    // Timer events arrive on a thread-pool thread, hence the BeginInvoke back to the UI thread.
+    private void ScheduleMissingCheck()
+    {
+        missingCheckTimer?.Stop();
+        missingCheckTimer?.Dispose();
+        missingCheckTimer = new System.Timers.Timer(750) { AutoReset = false };
+        missingCheckTimer.Elapsed += (s, ev) =>
+        {
+            try {
+                BeginInvoke(PruneMissingTabs);
+            }
+            catch (Exception ex) {
+                // Form already closed/disposed while the timer was pending -- nothing to do.
+                System.Diagnostics.Debug.WriteLine($"Missing-file check skipped: {ex.Message}");
+            }
+        };
+        missingCheckTimer.Start();
+    }
+
+    // Silently closes every tab whose file no longer exists at its original path (deleted, or
+    // moved/renamed away). No message is shown, since PrettyReMark is a viewer, not an editor.
+    // Iterates a snapshot because CloseTab() modifies `tabs`. If the active tab is among those
+    // closed, CloseTab() activates another one (or shows the welcome screen) by itself.
+    private void PruneMissingTabs()
+    {
+        var missing = tabs.Where(t => !File.Exists(t.FilePath)).ToList();
+        foreach (var tab in missing) {
+            CloseTab(tab.Id);
+        }
+    }
+
+    // Safety net for cases the watcher events can't be trusted to report (a folder moved
+    // between drives, a drive that went away, the watcher having silently died): every time
+    // the window regains focus -- e.g. when switching back from the editor, which is exactly
+    // when a stale tab would otherwise get looked at -- verify all open files still exist.
+    // File.Exists is a cheap call for local paths.
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        PruneMissingTabs();
+    }
+
     private void OnFileChanged(string tabId)
     {
         debounceTimer?.Stop();
@@ -1184,11 +1249,7 @@ partial class MainForm : Form
                 FileName = Path.GetFileName(path)
             };
 
-            var dir = Path.GetDirectoryName(path);
-            var file = Path.GetFileName(path);
-            tab.Watcher = new FileSystemWatcher(dir, file) { NotifyFilter = NotifyFilters.LastWrite };
-            tab.Watcher.Changed += (s, e) => OnFileChanged(tab.Id);
-            tab.Watcher.EnableRaisingEvents = true;
+            AttachWatcher(tab);
 
             tabs.Add(tab);
 
@@ -1420,6 +1481,7 @@ partial class MainForm : Form
             }
             tabs.Clear();
             debounceTimer?.Dispose();
+            missingCheckTimer?.Dispose();
             webView?.Dispose();
         }
         base.Dispose(disposing);
