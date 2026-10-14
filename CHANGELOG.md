@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.23] - 2026-10-14
+- Move repository to GitHub from GitLab
+
 ## [1.22] - 2026-10-14
 - Add "Page n of k" to each currently-displayed document
 

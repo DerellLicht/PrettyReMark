@@ -15,12 +15,12 @@ Summary of added features:
 - Make tab bar optional, controled by Options dialog  
 
 Here is its [Home page](https://derelllicht.42web.io/PrettyReMark.html)  
-Download the [installer](https://gitlab.com/DerellLicht/pretty-mark/-/releases/permalink/latest) here  
-See [Changelog](CHANGELOG.md) for the full revision history  
-`PrettyReMark` uses the [MIT](LICENSE.MIT.txt) license; view the file here.  
+Download the [installer](https://github.com/DerellLicht/PrettyReMark/releases/permalink/latest) here  
+See [Changelog](https://github.com/DerellLicht/PrettyReMark/blob/main/CHANGELOG.md) for the full revision history  
+`PrettyReMark` uses the [MIT](https://github.com/DerellLicht/PrettyReMark/blob/main/LICENSE.MIT.txt) license; view the file here.  
 Get the [PAD file](PrettyReMark.pad.xml) here
 
-![Sample image](https://gitlab.com/DerellLicht/pretty-mark/-/raw/main/images/PRM.combined.image.jpg)
+![Sample image](https://github.com/DerellLicht/PrettyReMark/blob/main/images/PRM.combined.image.jpg)
 
 ---
 Notes on this revisited version of `PrettyReMark` ...  

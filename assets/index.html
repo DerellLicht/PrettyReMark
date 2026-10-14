@@ -993,7 +993,7 @@ function showAbout() {
         + '<h2 style="margin:0 0 4px 0;color:' + fg + ';">' + _esc(T('app_name')) + '</h2>'
         + (_version ? '<p style="margin:0 0 8px 0;color:' + sub + ';font-size:12px;">v' + _esc(_version) + '</p>' : '')
         + '<p style="margin:0 0 12px 0;color:' + sub + ';font-size:14px;">' + _esc(T('about_description')) + '</p>'
-        + '<a href="https://gitlab.com/DerellLicht/pretty-mark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/pretty-mark</a>'
+        + '<a href="https://github.com/DerellLicht/PrettyReMark" style="color:' + link + ';font-size:14px;">gitlab.com/DerellLicht/pretty-mark</a>'
         + '<br><br><button id="app-about-ok" style="padding:6px 20px;border:1px solid ' + btnBorder + ';border-radius:6px;background:' + btnBg + ';color:' + fg + ';cursor:pointer;font-size:14px;">OK</button>'
         + '</div></div>';
     var closeAbout = function() { o.remove(); document.removeEventListener('keydown', escHandler); };
