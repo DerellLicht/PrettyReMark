@@ -1,5 +1,7 @@
 # PrettyReMark -- Makefile (replaces rebuild.cmd)
-# Wraps dotnet publish + Inno Setup for building, and glab for GitLab releases.
+# Wraps dotnet publish + Inno Setup for building, and gh for GitHub releases.
+# (Moved from GitLab/glab to GitHub/gh, Oct 2026, because the winget-pkgs
+# validation pipeline does not whitelist GitLab download URLs.)
 # VERSION comes from CHANGELOG.md and feeds dotnet publish, Inno Setup, and
 # the release/tag names -- no separate generated version file.
 
@@ -10,14 +12,11 @@ SETUP_EXE = Output/PrettyReMarkV$(VERSION).setup.exe
 SETUP_ZIP = Output/PrettyReMarkV$(VERSION).setup.zip
 TAG        = v$(VERSION)
 
-# Explicit -R avoids glab's "which is the base repository?" prompt (this repo
-# is a fork of eagle1's original).
-GLAB_REPO = DerellLicht/pretty-mark
-
-# GLAB_REPO with "/" percent-encoded, for glab api's :id path segments
-# (e.g. projects/<GLAB_REPO_ENC>/releases/...) -- "owner/repo" isn't accepted
-# there directly the way it is with -R elsewhere.
-GLAB_REPO_ENC = $(subst /,%2F,$(GLAB_REPO))
+# Explicit -R keeps gh from guessing the target repo (it otherwise infers it
+# from the git remotes). The GitLab-only "percent-encoded repo id" variable
+# is gone: gh takes plain "owner/repo" everywhere, and the glab-api asset-
+# link juggling it supported is replaced by "gh release upload --clobber".
+GH_REPO = DerellLicht/PrettyReMark
 
 .PHONY: single setup dist release update retag re-release check-clean clean install
 
@@ -45,38 +44,42 @@ check-clean:
 		exit 1; \
 	fi
 
-# First-time release: tag, push, create the GitLab release with notes sliced
-# from CHANGELOG.md.
+# First-time release: tag, push, create the GitHub release with notes sliced
+# from CHANGELOG.md. Fails at "git tag" if $(TAG) already exists locally
+# (e.g. it rode along with "git push --all/--tags" during the GitLab->GitHub
+# move) -- in that case use "make update", which creates the release if
+# it is missing.
 release: check-clean dist
-	@echo Preparing GitLab release $(TAG)...
+	@echo Preparing GitHub release $(TAG)...
 	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
 	git tag $(TAG)
 	git push origin $(TAG)
-	glab release create $(TAG) $(SETUP_ZIP) --notes-file temp_notes.md -R $(GLAB_REPO)
+	gh release create $(TAG) $(SETUP_ZIP) --title "$(TAG)" --notes-file temp_notes.md -R $(GH_REPO)
 	rm temp_notes.md
-	@echo Release $(TAG) uploaded to GitLab!
+	@echo Release $(TAG) uploaded to GitHub!
 
-# Updates (or creates, if missing) the release for $(TAG): notes first, then
-# assets. "glab release create" on an existing release just updates notes
-# without touching assets, and creates the release if it doesn't exist yet
-# -- so running it first makes this target self-healing either way, instead
-# of assuming the release already exists. Then: glab has no upload --clobber
-# (re-uploading a same-named asset errors), so any stale link with this
-# filename is looked up and deleted first, via glab api + jq. "tr -d '\r'"
-# strips the CRLF glab emits on Windows, which otherwise breaks the id
-# substitution.
+# Updates (or creates, if missing) the release for $(TAG). Self-healing:
+# "gh release view" succeeds only if the release exists, so we edit its notes
+# if it does and create it (with the asset) if it doesn't. Then the asset is
+# uploaded with --clobber, which replaces a same-named asset in place -- this
+# is what replaced the old glab "find stale link via api + jq, delete it,
+# re-upload" dance, since gh supports overwrite natively. When creating a
+# release for a tag that is not yet on the remote, gh would create the tag
+# itself from the default branch's HEAD; use "make release" or "make retag"
+# first if the tag needs to point somewhere specific.
 update: check-clean dist
 	@echo Updating release $(TAG)...
 	sed -n '/## \[$(VERSION)\]/,/## \[/p' CHANGELOG.md | sed '$$d' > temp_notes.md
-	glab release create $(TAG) --notes-file temp_notes.md -R $(GLAB_REPO)
+	@if gh release view $(TAG) -R $(GH_REPO) >/dev/null 2>&1; then \
+		echo "Release $(TAG) exists -- updating notes."; \
+		gh release edit $(TAG) --notes-file temp_notes.md -R $(GH_REPO); \
+	else \
+		echo "Release $(TAG) not found -- creating it."; \
+		gh release create $(TAG) --title "$(TAG)" --notes-file temp_notes.md -R $(GH_REPO); \
+	fi
 	rm temp_notes.md
-	@for id in $$(glab api "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links" \
-	    | jq -r '.[] | select(.name=="$(notdir $(SETUP_ZIP))") | .id' | tr -d '\r'); do \
-		echo Removing stale asset link $$id for $(notdir $(SETUP_ZIP))...; \
-		glab api -X DELETE "projects/$(GLAB_REPO_ENC)/releases/$(TAG)/assets/links/$$id" >/dev/null; \
-	done
-	glab release upload $(TAG) $(SETUP_ZIP) -R $(GLAB_REPO)
-	@echo Release $(TAG) assets and notes updated on GitLab!
+	gh release upload $(TAG) $(SETUP_ZIP) --clobber -R $(GH_REPO)
+	@echo Release $(TAG) assets and notes updated on GitHub!
 
 # Recovery for "released with pending changes left out of the tag": force-
 # moves $(TAG) to HEAD and re-pushes, then "update" re-releases against it.
