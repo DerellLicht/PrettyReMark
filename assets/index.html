@@ -170,6 +170,9 @@ body.dark #zoom-slider::-webkit-slider-thumb { background: #8b949e; }
 
 #status-info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
+/* "Page n of k" -- inherits #status-bar's text color, so color overrides already cover it. */
+#page-indicator { flex-shrink: 0; white-space: nowrap; }
+
 /* "Back" button: returns to the scroll position held before the last in-page link jump (see
    returnBack() in the script). Greyed out whenever there's nothing to return to. */
 #back-button {
@@ -242,6 +245,7 @@ body.dark mark.find-match.current { background: #b35c44; }
         </div>
         <div id="status-bar">
             <div id="status-info"></div>
+            <div id="page-indicator"></div>
             <button id="back-button" onclick="returnBack()" disabled title="Back to previous position (Alt+Left)">&#8617;</button>
             <div id="zoom-control">
                 <span style="cursor:pointer;" onclick="zoomOut()" title="Zoom out">&#x2212;</span>
@@ -406,6 +410,8 @@ function _applyStrings() {
     var zInSpan = document.querySelector('#zoom-control span[onclick="zoomIn()"]');
     if (zInSpan) zInSpan.title = T('tooltip_zoom_in');
 
+    _updatePageIndicator();   // pick up a translated "status_page" format
+
     // Re-render welcome/about if visible. Checked via a stable id (welcome-screen) rather than
     // matching the h1's text against a hardcoded app name -- that broke the moment the app was
     // renamed (this exact rename), since T('app_name') had already changed by the time this ran
@@ -469,6 +475,7 @@ function render(md, restoreTabScroll) {
         // the corrected value here, through the same path the debounced scroll listener uses,
         // makes this self-heal after one clamp instead of recurring indefinitely.
         if (contentArea.scrollTop !== target) _persistScrollPosition(_activeTabId, contentArea.scrollTop);
+        _updatePageIndicator();   // reloadContent() goes through here too
     });
 }
 
@@ -627,6 +634,7 @@ function showWelcome() {
         '<p>' + _esc(T('welcome_open_instruction')) + '</p>' +
         '<p style="color:#656d76;">' + _esc(T('welcome_drag_instruction')) + '</p>' +
         '</div>';
+    _updatePageIndicator();   // clears the indicator
 }
 
 // --- Zoom ---
@@ -916,6 +924,48 @@ document.getElementById('content-area').addEventListener('scroll', function() {
         _persistScrollPosition(_activeTabId, document.getElementById('content-area').scrollTop);
     }, 600);
 }, { passive: true });
+
+// --- "Page n of k" status indicator ---
+// A page is one viewport height of #content-area (pixels, not text lines, so tall headings/
+// code/images count correctly). k = pages in the document; n is proportional to scroll
+// position so it reads 1 at the top and k at the very bottom (plain floor(scrollTop/height)+1
+// would stop one short, since the last page is usually partial).
+function _updatePageIndicator() {
+    var el = document.getElementById('page-indicator');
+    var area = document.getElementById('content-area');
+    if (!el) { return; }
+    // No page numbers on the welcome screen.
+    if (document.getElementById('welcome-screen')) {
+        el.textContent = '';
+        return;
+    }
+    var view = area.clientHeight;
+    var range = area.scrollHeight - view;
+    // The -1 absorbs sub-pixel rounding so an exact fit isn't counted as an extra page.
+    var k = view > 0 ? Math.max(1, Math.ceil((area.scrollHeight - 1) / view)) : 1;
+    var n = range > 1 ? Math.round(area.scrollTop / range * (k - 1)) + 1 : 1;
+    n = Math.min(k, Math.max(1, n));
+    var fmt = _strings['status_page'] || 'Page {0} of {1}';   // English fallback until lang/*.json has it
+    el.textContent = fmt.replace('{0}', n).replace('{1}', k);
+}
+
+// Coalesces bursts of events (scroll, drag-resizing) into one update per frame.
+var _pageRafPending = false;
+function _schedulePageIndicator() {
+    if (_pageRafPending) { return; }
+    _pageRafPending = true;
+    requestAnimationFrame(function() {
+        _pageRafPending = false;
+        _updatePageIndicator();
+    });
+}
+
+document.getElementById('content-area').addEventListener('scroll', _schedulePageIndicator, { passive: true });
+
+// One observer covers window resize, sidebar drag, zoom, and late-loading images/<details>:
+// the viewport (#content-area) changes size, or the document (#content) changes height.
+new ResizeObserver(_schedulePageIndicator).observe(document.getElementById('content-area'));
+new ResizeObserver(_schedulePageIndicator).observe(_el);
 
 function _esc(s) {
     var d = document.createElement('div');

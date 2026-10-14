@@ -1,5 +1,8 @@
 # PrettyReMark Changelog
 
+## [1.22] - 2026-10-14
+- Add "Page n of k" to each currently-displayed document
+
 ## [1.21] - 2026-10-09
 - Recognize when a loaded file has been removed, and close its window
 
