@@ -34,15 +34,15 @@
 	</Company_Info>
 	<Program_Info>
 		<Program_Name>PrettyReMark</Program_Name>
-		<Program_Version>1.14</Program_Version>
-		<Program_Release_Month>09</Program_Release_Month>
-		<Program_Release_Day>18</Program_Release_Day>
+		<Program_Version>1.23</Program_Version>
+		<Program_Release_Month>10</Program_Release_Month>
+		<Program_Release_Day>14</Program_Release_Day>
 		<Program_Release_Year>2026</Program_Release_Year>
 		<Program_Cost_Dollars>0</Program_Cost_Dollars>
 		<Program_Cost_Other_Code />
 		<Program_Cost_Other />
 		<Program_Type>Freeware</Program_Type>
-		<Program_Release_Status>New Release</Program_Release_Status>
+		<Program_Release_Status>Major Update</Program_Release_Status>
 		<Program_Install_Support>Install and Uninstall</Program_Install_Support>
 		<Program_OS_Support>WinVista,WinVista x64</Program_OS_Support>
 		<Program_Language>English</Program_Language>
@@ -88,14 +88,14 @@ as well as program restarts.
 	</Program_Descriptions>
 	<Web_Info>
 		<Application_URLs>
-			<Application_Info_URL>https://gitlab.com/DerellLicht/pretty-mark</Application_Info_URL>
+			<Application_Info_URL>https://github.com/DerellLicht/PrettyReMark/releases/latest</Application_Info_URL>
 			<Application_Order_URL />
-			<Application_Screenshot_URL>https://gitlab.com/DerellLicht/pretty-mark/-/raw/main/images/PrettyReMark.screen.and.options.jpg</Application_Screenshot_URL>
+			<Application_Screenshot_URL>https://github.com/DerellLicht/PrettyReMark/blob/main/images/PRM.combined.image.jpg</Application_Screenshot_URL>
 			<Application_Icon_URL />
 			<Application_XML_File_URL />
 		</Application_URLs>
 		<Download_URLs>
-			<Primary_Download_URL>https://gitlab.com/DerellLicht/pretty-mark/-/releases/permalink/latest</Primary_Download_URL>
+			<Primary_Download_URL>https://github.com/DerellLicht/PrettyReMark/releases/latest</Primary_Download_URL>
 			<Secondary_Download_URL />
 			<Additional_Download_URL_1 />
 			<Additional_Download_URL_2 />
