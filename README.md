@@ -20,7 +20,7 @@ See [Changelog](https://github.com/DerellLicht/PrettyReMark/blob/main/CHANGELOG.
 `PrettyReMark` uses the [MIT](https://github.com/DerellLicht/PrettyReMark/blob/main/LICENSE.MIT.txt) license; view the file here.  
 Get the [PAD file](PrettyReMark.pad.xml) here
 
-![Sample image](https://github.com/DerellLicht/PrettyReMark/blob/main/images/PRM.combined.image.jpg)
+![Sample image](https://github.com/DerellLicht/PrettyReMark/blob/main/images/PRM.combined.image.jpg?raw=true)
 
 ---
 Notes on this revisited version of `PrettyReMark` ...  
