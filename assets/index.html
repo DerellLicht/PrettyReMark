@@ -879,6 +879,16 @@ function _initDrawerDragAndDrop() {
 
     list.addEventListener('drop', function(e) { e.preventDefault(); });
 
+    // Right-click on an item: ask Program.cs to pop up that file's menu (Edit / Open with /
+    // Show in Explorer / ...). Program.cs already disables WebView2's own context menu; the
+    // preventDefault just makes sure nothing else reacts to the event.
+    list.addEventListener('contextmenu', function(e) {
+        var item = e.target.closest('.drawer-item');
+        if (!item) { return; }
+        e.preventDefault();
+        window.chrome.webview.postMessage({ type: 'drawer_context_menu', id: item.dataset.id });
+    });
+
     // dragend always fires exactly once, so finalize here rather than in drop.
     list.addEventListener('dragend', function() {
         var dragging = list.querySelector('.drawer-item.dragging');

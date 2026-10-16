@@ -32,6 +32,14 @@ class AppSettings
     // theme-import script) without restarting the app. Defaults to false/hidden since it's a
     // power-user testing aid, not something most users need to see.
     public bool EnableColorReloadButton { get; set; } = false;
+
+    // Program launched by the sidebar right-click menu's "Edit in <name>" item, given the
+    // clicked file's full path as its one (quoted) argument. Defaults to the copy of Notepad in
+    // Windows' own system folder, since that's the one editor guaranteed to exist. Meant to be
+    // hand-edited in settings.json while PrettyReMark is closed -- e.g. to
+    // "C:\\Program Files\\Notepad++\\notepad++.exe" (JSON needs the backslashes doubled).
+    // An empty value falls back to the default (see GetEditorPath in MainForm).
+    public string EditorPath { get; set; } = Path.Combine(Environment.SystemDirectory, "notepad.exe");
     public string Language { get; set; } = "";
     public List<string> RecentFiles { get; set; } = new();
     public List<string> SessionFiles { get; set; } = new();
@@ -329,6 +337,11 @@ partial class MainForm : Form
     private ToolStripMenuItem viewMenu, zoomInItem, zoomOutItem, resetZoomItem, fullScreenItem;
     private ToolStripMenuItem langMenu, helpMenu, aboutItem;
     private ToolStripMenuItem optionsItem;
+
+    // The sidebar's right-click menu. Kept in a field (rebuilt per right-click, disposed at the
+    // start of the next one) rather than disposed in its own Closed event, because Closed can
+    // fire before the clicked item's Click handler has run.
+    private ContextMenuStrip drawerMenu;
 
     // Session restore
     private string _initialFilePath;
@@ -791,6 +804,12 @@ partial class MainForm : Form
             }
             else if (type == "click")
             {
+                // A click inside the web content never reaches WinForms' own "click outside
+                // closes the menu" handling (WebView2 owns that input), so the sidebar's
+                // right-click menu has to be closed here too, same as the menu strip's
+                // dropdowns below. A right-click's own mousedown also lands here first, which
+                // is fine: it closes any old menu just before drawer_context_menu opens a new one.
+                drawerMenu?.Close();
                 foreach (ToolStripItem item in MainMenuStrip.Items) {
                     if (item is ToolStripMenuItem mi && mi.DropDown.Visible) {
                         mi.HideDropDown();
@@ -803,6 +822,13 @@ partial class MainForm : Form
                 settings.DrawerOpen = open;
                 drawerItem.Checked = open;
                 settings.Save();
+            }
+            else if (type == "drawer_context_menu")
+            {
+                // Right-click on a sidebar item (see index.html). Acts on the item that was
+                // clicked, not the active tab, and deliberately doesn't switch to it.
+                var id = doc.RootElement.GetProperty("id").GetString();
+                ShowDrawerContextMenu(id);
             }
             else if (type == "drawer_width")
             {
@@ -949,6 +975,105 @@ partial class MainForm : Form
         tabs.Clear();
         tabs.AddRange(reordered);
         SaveSession();
+    }
+
+    // --- Sidebar right-click menu ---
+
+    // Returns the program for the menu's "Edit" item: settings.EditorPath, or the system
+    // Notepad if that's blank (e.g. hand-cleared in settings.json).
+    private string GetEditorPath()
+    {
+        if (!string.IsNullOrWhiteSpace(settings.EditorPath)) {
+            return settings.EditorPath;
+        }
+        return Path.Combine(Environment.SystemDirectory, "notepad.exe");
+    }
+
+    // Translated string with an explicit English fallback, so the new menu reads fine before
+    // its keys exist in lang/*.json (same approach as OptionsDialog's T(key, fallback)).
+    private string TF(string key, string fallback) => _strings.GetValueOrDefault(key, fallback);
+
+    // Builds and pops up the sidebar's right-click menu for one tab's file, at the mouse
+    // position. The items capture only the file path (not the TabInfo), so they still work if
+    // the tab goes away while the menu is open. Unknown tab id (e.g. closed in the meantime)
+    // is a silent no-op. The previous menu is disposed here -- see the drawerMenu field.
+    private void ShowDrawerContextMenu(string tabId)
+    {
+        var tab = tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null) {
+            return;
+        }
+        string path = tab.FilePath;
+        string editorName = Path.GetFileNameWithoutExtension(GetEditorPath());
+
+        drawerMenu?.Dispose();
+        drawerMenu = new ContextMenuStrip();
+        drawerMenu.Items.Add(string.Format(TF("menu_ctx_edit", "Edit in {0}"), editorName), null,
+            (s, e) => EditInExternalEditor(path));
+        drawerMenu.Items.Add(TF("menu_ctx_open_with", "Open with..."), null,
+            (s, e) => OpenWithDialog(path));
+        drawerMenu.Items.Add(new ToolStripSeparator());
+        drawerMenu.Items.Add(TF("menu_ctx_show_explorer", "Show in Explorer"), null,
+            (s, e) => ShowInExplorer(path));
+        drawerMenu.Items.Add(TF("menu_ctx_copy_path", "Copy path"), null,
+            (s, e) => CopyPathToClipboard(path));
+        drawerMenu.Items.Add(new ToolStripSeparator());
+        drawerMenu.Items.Add(TF("menu_ctx_close", "Close File"), null, (s, e) => CloseTab(tabId));
+        drawerMenu.Show(Control.MousePosition);
+    }
+
+    // Starts a process through ShellExecute, showing any failure in a message box. Without the
+    // catch, an exception here would escape into OnWebMessage's catch-all and just vanish into
+    // the trace log, leaving the user with a menu item that silently does nothing.
+    private void StartShell(System.Diagnostics.ProcessStartInfo psi)
+    {
+        try {
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex) {
+            MessageBox.Show(this, ex.Message, T("app_name"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    // Opens the file in the configured editor, passing the full path as a quoted argument.
+    // (Windows file names can't contain '"', so the quoting can't be broken out of.)
+    private void EditInExternalEditor(string path)
+    {
+        StartShell(new System.Diagnostics.ProcessStartInfo(GetEditorPath()) {
+            Arguments = "\"" + path + "\"",
+            UseShellExecute = true
+        });
+    }
+
+    // Standard Windows "How do you want to open this file?" chooser, via the shell's "openas"
+    // verb.
+    private void OpenWithDialog(string path)
+    {
+        StartShell(new System.Diagnostics.ProcessStartInfo(path) {
+            Verb = "openas",
+            UseShellExecute = true
+        });
+    }
+
+    // Opens an Explorer window with the file pre-selected.
+    private void ShowInExplorer(string path)
+    {
+        StartShell(new System.Diagnostics.ProcessStartInfo("explorer.exe") {
+            Arguments = "/select,\"" + path + "\"",
+            UseShellExecute = true
+        });
+    }
+
+    // Copies the file's full path as text. The clipboard can be briefly held open by another
+    // process, in which case SetText throws -- reported rather than swallowed.
+    private void CopyPathToClipboard(string path)
+    {
+        try {
+            Clipboard.SetText(path);
+        }
+        catch (Exception ex) {
+            MessageBox.Show(this, ex.Message, T("app_name"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private static readonly Dictionary<string, string> ImageContentTypes = new()
@@ -1482,6 +1607,7 @@ partial class MainForm : Form
             tabs.Clear();
             debounceTimer?.Dispose();
             missingCheckTimer?.Dispose();
+            drawerMenu?.Dispose();
             webView?.Dispose();
         }
         base.Dispose(disposing);

@@ -1,5 +1,10 @@
 # PrettyReMark Changelog
 
+## [1.24] - 2026-10-16
+- Changed: inline code background in dark mode is more visible (opacity raised from 20% to 30%)
+- Added: right-click menu on sidebar items to load a file in external editor
+- Added: EditorPath setting in settings.json (defaults to Notepad) for the “Edit in...” menu item
+
 ## [1.23] - 2026-10-14
 - Move repository to GitHub from GitLab
 
