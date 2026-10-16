@@ -1,4 +1,4 @@
-# PrettyReMark revisited
+# PrettyReMark (PRM) revisited
 
 A lightweight, tabbed Markdown viewer for Windows with live reload and syntax highlighting.
 
@@ -21,6 +21,25 @@ See [Changelog](https://github.com/DerellLicht/PrettyReMark/blob/main/CHANGELOG.
 Get the [PAD file](PrettyReMark.pad.xml) here
 
 ![Sample image](https://github.com/DerellLicht/PrettyReMark/blob/main/images/PRM.combined.image.jpg?raw=true)
+
+---
+### 10/16/26 new feature:  
+Though `PrettyReMark` is only a viewer, it has the ability to load a file into a separate editor.  
+Note that if a `.md` file is edited outside of PRM, any time the file is saved in the editor,
+the file display will be automatically updated in PRM.
+
+To access that function:
+right-click on a filename in sidebar, opens a menu;  
+The interesting item here is `Edit in Notepad` ...  
+To change the editor that is used here, do the following:
+1. Close `PrettyReMark`
+2. Edit `%APPDATA%\PrettyReMark\settings.json`
+Look for the line:  
+  "EditorPath": "C:\\\WINDOWS\\\system32\\\notepad.exe",  
+Change that to the path+filename of your preferred editor; for example:  
+  "EditorPath": "C:\\\RJTextEd\\\TextEd.exe",  
+NOTE: each of the backslashes must be doubled: `\\`  
+3. Restart `PrettyReMark`; It should now use your specified editor
 
 ---
 Notes on this revisited version of `PrettyReMark` ...  
