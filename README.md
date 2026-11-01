@@ -3,7 +3,7 @@
 A lightweight, tabbed Markdown viewer for Windows with live reload and syntax highlighting.
 
 ---
-Summary of added features:
+Summary of fixes and features:
 - Fixed image, html, `mailto:` links so they open in appropriate programs
 - added version number to About dialog
 - save/restore size and position of main window
@@ -15,6 +15,8 @@ Summary of added features:
   as well as program restarts.
 - Make sidebar resizeable, add tooltips to files and paths
 - Make tab bar optional, controled by Options dialog  
+
+---
 
 Here is its [Home page](https://derelllicht.42web.io/PrettyReMark.html)  
 Download the [installer](https://github.com/DerellLicht/PrettyReMark/releases/latest) here  
