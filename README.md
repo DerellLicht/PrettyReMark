@@ -13,8 +13,8 @@ Summary of fixes and features:
   Program colors are stored in `%appdata%\PrettyReMark\colors.json`
 - Make program recall current cursor position in *each* file, across document changes 
   as well as program restarts.
-- Make sidebar resizeable, add tooltips to files and paths
-- Make tab bar optional, controled by Options dialog  
+- Make sidebar resizable, add tooltips to files and paths
+- Make tab bar optional, controlled by Options dialog  
 
 ---
 
