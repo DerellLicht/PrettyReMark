@@ -7,6 +7,8 @@ Summary of added features:
 - Fixed image, html, `mailto:` links so they open in appropriate programs
 - added version number to About dialog
 - save/restore size and position of main window
+- tabs - better when only a small number of files are open  
+- sidebar - handier when a *large* number of files are open  
 - Implement Options dialog; make all program colors settable here;  
   Program colors are stored in `%appdata%\PrettyReMark\colors.json`
 - Make program recall current cursor position in *each* file, across document changes 
